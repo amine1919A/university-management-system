@@ -1,0 +1,3881 @@
+meme 14 probleme api.js:288 
+ GET http://localhost:8000/api/finance/transactions/?page_size=100 500 (Internal Server Error)
+api.js:299 ? Error fetching transactions: 
+{success: false, error: 'Erreur lors du chargement des transactions', detail: "'int' object has no attribute 'replace'"}
+Finance.jsx:106 ? Erreur chargement transactions: 
+AxiosError {message: 'Request failed with status code 500', name: 'AxiosError', code: 'ERR_BAD_RESPONSE', config: {…}, request: XMLHttpRequest, …}
+Finance.jsx:107 Détails erreur: 
+{success: false, error: 'Erreur lors du chargement des transactions', detail: "'int' object has no attribute 'replace'"}
+api.js:449 ?? Statistics response: 
+{success: true, data: {…}}
+Finance.jsx:141 ?? Réponse API Statistiques: 
+{success: true, data: {…}}
+api.js:371 
+ GET http://localhost:8000/api/finance/budgets/ 500 (Internal Server Error)
+api.js:380 ? Error fetching budgets: 
+AxiosError {message: 'Request failed with status code 500', name: 'AxiosError', code: 'ERR_BAD_RESPONSE', config: {…}, request: XMLHttpRequest, …}
+Finance.jsx:132 ? Erreur chargement budgets: 
+AxiosError {message: 'Request failed with status code 500', name: 'AxiosError', code: 'ERR_BAD_RESPONSE', config: {…}, request: XMLHttpRequest, …}
+Finance.jsx:64 ? Données chargées avec succès
+?
+
+  problement le probleme en frontend import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import {
+  DollarSign, CreditCard, TrendingUp, TrendingDown, Filter, Search, Plus,
+  Eye, Edit, Trash2, Calendar, Users, BookOpen, Award, CheckCircle, Clock, XCircle,
+  ChevronLeft, ChevronRight, BarChart3, PieChart, X, RefreshCw, FileText,
+  Building, Database, AlertCircle, GraduationCap, Wallet, Banknote, Coins
+} from 'lucide-react';
+import { financeService } from '../services/api';
+import Toast from '../components/Toast';
+import FinanceModal from '../components/FinanceModal';
+
+const Finance = () => {
+  // États principaux
+  const [transactions, setTransactions] = useState([]);
+  const [budgets, setBudgets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [selectedType, setSelectedType] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  
+  // États pour les modals
+  const [showTransactionModal, setShowTransactionModal] = useState(false);
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [selectedBudget, setSelectedBudget] = useState(null);
+  const [modalMode, setModalMode] = useState('view');
+  
+  // États pour les statistiques
+  const [statistics, setStatistics] = useState({
+    total_income: 0,
+    total_expenses: 0,
+    total_salaries: 0,
+    total_scholarships: 0,
+    pending_amount: 0,
+    overdue_amount: 0,
+    transaction_distribution: [],
+    budget_utilization: []
+  });
+  
+  // États pour les notifications
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ ...toast, show: false }), 3000);
+  };
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      console.log("?? Chargement des données financières...");
+      await Promise.all([
+        fetchTransactions(),
+        fetchBudgets(),
+        fetchStatistics()
+      ]);
+      console.log("? Données chargées avec succès");
+    } catch (error) {
+      console.error('? Erreur chargement données financières:', error);
+      showToast('Erreur lors du chargement des données', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      console.log("?? Chargement des transactions...");
+      const response = await financeService.getTransactions({ page_size: 100 });
+      console.log("?? Réponse API Transactions:", response.data);
+      
+      let transactionsData = [];
+      
+      // Format 1: { success: true, data: [...] }
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        transactionsData = response.data.data;
+        console.log(`? Format 1: ${transactionsData.length} transactions depuis data.data`);
+      }
+      // Format 2: Tableau direct dans data
+      else if (Array.isArray(response.data)) {
+        transactionsData = response.data;
+        console.log(`? Format 2: ${transactionsData.length} transactions (tableau direct)`);
+      }
+      // Format 3: ViewSet format (results)
+      else if (response.data && Array.isArray(response.data.results)) {
+        transactionsData = response.data.results;
+        console.log(`? Format 3: ${transactionsData.length} transactions depuis results`);
+      }
+      
+      if (transactionsData.length > 0) {
+        console.log("?? Exemple de transaction:", transactionsData[0]);
+        setTransactions(transactionsData);
+        showToast(`${transactionsData.length} transactions chargées`, 'success');
+      } else {
+        console.warn("?? Aucune transaction trouvée");
+        setTransactions([]);
+      }
+    } catch (error) {
+      console.error('? Erreur chargement transactions:', error);
+      console.error('Détails erreur:', error.response?.data);
+      setTransactions([]);
+      showToast('Erreur lors du chargement des transactions', 'error');
+    }
+  };
+
+  const fetchBudgets = async () => {
+    try {
+      console.log("?? Chargement des budgets...");
+      const response = await financeService.getBudgets();
+      console.log("?? Réponse API Budgets:", response.data);
+      
+      let budgetsData = [];
+      
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        budgetsData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        budgetsData = response.data;
+      } else if (response.data && Array.isArray(response.data.results)) {
+        budgetsData = response.data.results;
+      }
+      
+      setBudgets(budgetsData);
+      console.log(`? ${budgetsData.length} budgets chargés`);
+    } catch (error) {
+      console.error('? Erreur chargement budgets:', error);
+      setBudgets([]);
+    }
+  };
+
+  const fetchStatistics = async () => {
+    try {
+      console.log("?? Chargement des statistiques...");
+      const response = await financeService.getStatistics();
+      console.log("?? Réponse API Statistiques:", response.data);
+      
+      if (response.data && response.data.success) {
+        setStatistics(response.data.data || response.data);
+      } else if (response.data) {
+        setStatistics(response.data);
+      }
+    } catch (error) {
+      console.error('? Erreur chargement statistiques:', error);
+    }
+  };
+
+  // Gestion des transactions
+  const handleAddTransaction = () => {
+    setSelectedTransaction(null);
+    setModalMode('create');
+    setShowTransactionModal(true);
+  };
+
+  const handleViewTransaction = (transaction) => {
+    setSelectedTransaction(transaction);
+    setModalMode('view');
+    setShowTransactionModal(true);
+  };
+
+  const handleEditTransaction = (transaction) => {
+    setSelectedTransaction(transaction);
+    setModalMode('edit');
+    setShowTransactionModal(true);
+  };
+
+  const handleDeleteTransaction = async (id) => {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette transaction ?')) {
+      try {
+        await financeService.deleteTransaction(id);
+        showToast('Transaction supprimée avec succès', 'success');
+        fetchData();
+      } catch (error) {
+        console.error('? Erreur suppression transaction:', error);
+        showToast('Erreur lors de la suppression', 'error');
+      }
+    }
+  };
+
+  const handleSaveTransaction = async (transactionData) => {
+    try {
+      console.log("?? Sauvegarde transaction:", transactionData);
+      let response;
+      
+      if (selectedTransaction && selectedTransaction.id) {
+        response = await financeService.updateTransaction(selectedTransaction.id, transactionData);
+        showToast('Transaction mise à jour avec succès', 'success');
+      } else {
+        response = await financeService.createTransaction(transactionData);
+        showToast('Transaction ajoutée avec succès', 'success');
+      }
+      
+      setShowTransactionModal(false);
+      setSelectedTransaction(null);
+      fetchData();
+      
+    } catch (error) {
+      console.error('? Erreur sauvegarde transaction:', error);
+      console.error('Détails erreur:', error.response?.data);
+      
+      let errorMessage = 'Erreur lors de la sauvegarde';
+      if (error.response?.data?.errors) {
+        errorMessage = Object.values(error.response.data.errors).flat().join(', ');
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+      
+      showToast(errorMessage, 'error');
+    }
+  };
+
+  // Gestion des budgets
+  const handleAddBudget = () => {
+    setSelectedBudget(null);
+    setModalMode('create');
+    setShowBudgetModal(true);
+  };
+
+  const handleEditBudget = (budget) => {
+    setSelectedBudget(budget);
+    setModalMode('edit');
+    setShowBudgetModal(true);
+  };
+
+  const handleDeleteBudget = async (id) => {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce budget ?')) {
+      try {
+        await financeService.deleteBudget(id);
+        showToast('Budget supprimé avec succès', 'success');
+        fetchData();
+      } catch (error) {
+        console.error('? Erreur suppression budget:', error);
+        showToast('Erreur lors de la suppression', 'error');
+      }
+    }
+  };
+
+  const handleSaveBudget = async (budgetData) => {
+    try {
+      let response;
+      
+      if (selectedBudget && selectedBudget.id) {
+        response = await financeService.updateBudget(selectedBudget.id, budgetData);
+        showToast('Budget mis à jour avec succès', 'success');
+      } else {
+        response = await financeService.createBudget(budgetData);
+        showToast('Budget ajouté avec succès', 'success');
+      }
+      
+      setShowBudgetModal(false);
+      setSelectedBudget(null);
+      fetchData();
+      
+    } catch (error) {
+      console.error('? Erreur sauvegarde budget:', error);
+      let errorMessage = 'Erreur lors de la sauvegarde';
+      if (error.response?.data?.error) errorMessage = error.response.data.error;
+      if (error.response?.data?.detail) errorMessage = error.response.data.detail;
+      showToast(errorMessage, 'error');
+    }
+  };
+
+  // Test API
+  const testAPI = async () => {
+    console.log("?? Test de l'API finance...");
+    try {
+      await financeService.testAPI();
+      showToast('Tests API terminés - Voir console', 'info');
+    } catch (error) {
+      console.error('? Erreur test API:', error);
+      showToast('Erreur lors du test API', 'error');
+    }
+  };
+
+  // Configuration des types de transactions
+  const transactionTypes = [
+    { value: 'all', label: 'Tous les types' },
+    { value: 'tuition', label: 'Frais de scolarité' },
+    { value: 'exam_fee', label: 'Frais d\'examen' },
+    { value: 'library_fee', label: 'Frais de bibliothèque' },
+    { value: 'lab_fee', label: 'Frais de laboratoire' },
+    { value: 'scholarship', label: 'Bourse d\'études' },
+    { value: 'refund', label: 'Remboursement' },
+    { value: 'salary', label: 'Salaire enseignant' },
+    { value: 'maintenance', label: 'Maintenance' },
+    { value: 'equipment', label: 'Équipement' },
+    { value: 'other', label: 'Autre' }
+  ];
+
+  // Configuration des catégories
+  const categoryTypes = [
+    { value: 'all', label: 'Toutes catégories' },
+    { value: 'income', label: 'Revenus' },
+    { value: 'expense', label: 'Dépenses' },
+    { value: 'salary', label: 'Salaires' },
+    { value: 'scholarship', label: 'Bourses' }
+  ];
+
+  const statusOptions = [
+    { value: 'all', label: 'Tous les statuts' },
+    { value: 'paid', label: 'Payé' },
+    { value: 'pending', label: 'En attente' },
+    { value: 'overdue', label: 'En retard' },
+    { value: 'partial', label: 'Partiel' },
+    { value: 'cancelled', label: 'Annulé' }
+  ];
+
+  const statusConfig = {
+    paid: { color: 'bg-green-100 text-green-800', icon: CheckCircle, label: 'Payé' },
+    pending: { color: 'bg-yellow-100 text-yellow-800', icon: Clock, label: 'En attente' },
+    overdue: { color: 'bg-red-100 text-red-800', icon: Clock, label: 'En retard' },
+    partial: { color: 'bg-orange-100 text-orange-800', icon: Clock, label: 'Partiel' },
+    cancelled: { color: 'bg-gray-100 text-gray-800', icon: XCircle, label: 'Annulé' }
+  };
+
+  // Filtrage et pagination
+  const safeTransactions = Array.isArray(transactions) ? transactions : [];
+  const filteredTransactions = safeTransactions.filter(transaction => {
+    if (!transaction) return false;
+    
+    const matchesSearch = 
+      (transaction.transaction_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (transaction.student_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (transaction.student_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (transaction.teacher_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (transaction.teacher_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (transaction.description || '').toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesType = selectedType === 'all' || transaction.transaction_type === selectedType;
+    const matchesStatus = selectedStatus === 'all' || transaction.status === selectedStatus;
+    
+    return matchesSearch && matchesType && matchesStatus;
+  });
+
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedTransactions = filteredTransactions.slice(startIndex, startIndex + itemsPerPage);
+
+  // Formatage des montants
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return '0.000 TND';
+    return new Intl.NumberFormat('fr-TN', {
+      style: 'currency',
+      currency: 'TND',
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3
+    }).format(amount);
+  };
+
+  const formatSimpleCurrency = (amount) => {
+    if (!amount && amount !== 0) return '0 TND';
+    return new Intl.NumberFormat('fr-TN', {
+      style: 'currency',
+      currency: 'TND',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  // Calcul des totaux depuis les statistiques
+  const calculatedStats = {
+    totalIncome: statistics.total_income || 0,
+    totalExpenses: statistics.total_expenses || 0,
+    totalSalaries: statistics.total_salaries || 0,
+    totalScholarships: statistics.total_scholarships || 0,
+    pendingAmount: statistics.pending_amount || 0,
+    overdueAmount: statistics.overdue_amount || 0,
+    netBalance: (statistics.total_income || 0) - (statistics.total_expenses || 0) - (statistics.total_salaries || 0) - (statistics.total_scholarships || 0)
+  };
+
+  // Calculer les statistiques locales si les statistiques API ne sont pas disponibles
+  const localStats = {
+    totalRevenue: safeTransactions
+      .filter(t => t.category === 'income' && t.status === 'paid')
+      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0),
+    
+    pendingAmountLocal: safeTransactions
+      .filter(t => t.status === 'pending')
+      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0),
+    
+    overdueAmountLocal: safeTransactions
+      .filter(t => t.status === 'overdue')
+      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0),
+    
+    scholarshipAmountLocal: Math.abs(safeTransactions
+      .filter(t => t.transaction_type === 'scholarship' && t.status === 'paid')
+      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0))
+  };
+
+  // Utiliser les statistiques API ou locales
+  const displayStats = {
+    totalRevenue: calculatedStats.totalIncome || localStats.totalRevenue,
+    pendingAmount: calculatedStats.pendingAmount || localStats.pendingAmountLocal,
+    overdueAmount: calculatedStats.overdueAmount || localStats.overdueAmountLocal,
+    scholarshipAmount: calculatedStats.totalScholarships || localStats.scholarshipAmountLocal,
+    netBalance: calculatedStats.netBalance
+  };
+
+  if (loading && safeTransactions.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100">
+        <div className="text-center">
+          <div className="w-20 h-20 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+          <p className="text-gray-700 text-lg font-medium">Chargement des données financières...</p>
+          <p className="text-gray-500 mt-2">ITeam University - Système de gestion financière</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 p-4 md:p-6">
+      {/* Toast Notifications */}
+      {toast.show && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast({ ...toast, show: false })} 
+        />
+      )}
+
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl shadow-xl p-6 text-white">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+                <DollarSign className="text-white" size={28} />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold">ITeam University - Système Financier</h1>
+                <p className="text-blue-100 mt-2">Gestion complète des transactions, budgets et salaires</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button 
+                onClick={handleAddTransaction}
+                className="flex items-center space-x-2 px-6 py-3 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition shadow-lg"
+              >
+                <Plus size={20} />
+                <span className="font-semibold">Nouvelle transaction</span>
+              </button>
+              <button 
+                onClick={testAPI}
+                className="flex items-center space-x-2 px-4 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition shadow"
+                title="Tester l'API"
+              >
+                <Database size={20} />
+                <span>Test API</span>
+              </button>
+              <button 
+                onClick={fetchData}
+                className="p-3 bg-white/20 text-white rounded-lg hover:bg-white/30 transition"
+                title="Rafraîchir les données"
+              >
+                <RefreshCw size={20} />
+              </button>
+            </div>
+          </div>
+          
+          {/* Quick Stats */}
+          <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-3 bg-white/10 rounded-lg">
+              <p className="text-sm text-blue-200">Total transactions</p>
+              <p className="text-xl font-bold">{safeTransactions.length}</p>
+            </div>
+            <div className="text-center p-3 bg-white/10 rounded-lg">
+              <p className="text-sm text-blue-200">Budgets actifs</p>
+              <p className="text-xl font-bold">{budgets.filter(b => b.is_active).length}</p>
+            </div>
+            <div className="text-center p-3 bg-white/10 rounded-lg">
+              <p className="text-sm text-blue-200">Solde net</p>
+              <p className="text-xl font-bold">{formatSimpleCurrency(displayStats.netBalance)}</p>
+            </div>
+            <div className="text-center p-3 bg-white/10 rounded-lg">
+              <p className="text-sm text-blue-200">Taux de recouvrement</p>
+              <p className="text-xl font-bold">
+                {displayStats.totalRevenue + displayStats.pendingAmount + displayStats.overdueAmount > 0
+                  ? Math.round((displayStats.totalRevenue / (displayStats.totalRevenue + displayStats.pendingAmount + displayStats.overdueAmount)) * 100)
+                  : 0}%
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Statistiques principales */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl shadow-lg p-6 border-r-4 border-green-500"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Revenus totaux</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">
+                {formatSimpleCurrency(displayStats.totalRevenue)}
+              </p>
+              <div className="flex items-center mt-2 text-green-600 text-sm">
+                <TrendingUp size={16} className="ml-1" />
+                <span>Transactions payées</span>
+              </div>
+            </div>
+            <div className="p-3 bg-green-100 text-green-600 rounded-xl">
+              <DollarSign size={24} />
+            </div>
+          </div>
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white rounded-2xl shadow-lg p-6 border-r-4 border-yellow-500"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">En attente de paiement</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">
+                {formatSimpleCurrency(displayStats.pendingAmount)}
+              </p>
+              <div className="flex items-center mt-2 text-yellow-600 text-sm">
+                <Clock size={16} className="ml-1" />
+                <span>{safeTransactions.filter(t => t.status === 'pending').length} transactions</span>
+              </div>
+            </div>
+            <div className="p-3 bg-yellow-100 text-yellow-600 rounded-xl">
+              <Clock size={24} />
+            </div>
+          </div>
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-2xl shadow-lg p-6 border-r-4 border-red-500"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Retards</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">
+                {formatSimpleCurrency(displayStats.overdueAmount)}
+              </p>
+              <div className="flex items-center mt-2 text-red-600 text-sm">
+                <TrendingDown size={16} className="ml-1" />
+                <span>{safeTransactions.filter(t => t.status === 'overdue').length} retards</span>
+              </div>
+            </div>
+            <div className="p-3 bg-red-100 text-red-600 rounded-xl">
+              <Clock size={24} />
+            </div>
+          </div>
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white rounded-2xl shadow-lg p-6 border-r-4 border-blue-500"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Bourses d'études</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">
+                {formatSimpleCurrency(displayStats.scholarshipAmount)}
+              </p>
+              <div className="flex items-center mt-2 text-blue-600 text-sm">
+                <Award size={16} className="ml-1" />
+                <span>
+                  {safeTransactions.filter(t => t.transaction_type === 'scholarship' && t.status === 'paid').length} bénéficiaires
+                </span>
+              </div>
+            </div>
+            <div className="p-3 bg-blue-100 text-blue-600 rounded-xl">
+              <Award size={24} />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Filtres et recherche */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-2xl shadow-lg p-6 mb-6"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {/* Recherche */}
+          <div className="md:col-span-2 relative">
+            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Rechercher numéro, étudiant, enseignant, description..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pr-10 pl-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
+              dir="rtl"
+            />
+          </div>
+
+          {/* Filtre type */}
+          <div className="relative">
+            <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <select
+              value={selectedType}
+              onChange={(e) => {
+                setSelectedType(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pr-10 pl-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none text-right"
+              dir="rtl"
+            >
+              {transactionTypes.map(type => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtre statut */}
+          <div className="relative">
+            <DollarSign className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <select
+              value={selectedStatus}
+              onChange={(e) => {
+                setSelectedStatus(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pr-10 pl-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none text-right"
+              dir="rtl"
+            >
+              {statusOptions.map(status => (
+                <option key={status.value} value={status.value}>
+                  {status.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Actions */}
+          <div className="flex space-x-3 space-x-reverse">
+            <button 
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedType('all');
+                setSelectedStatus('all');
+                setCurrentPage(1);
+              }}
+              className="flex-1 border border-red-300 text-red-600 px-4 py-3 rounded-lg hover:bg-red-50 flex items-center justify-center space-x-2 space-x-reverse transition"
+            >
+              <X size={18} />
+              <span>Réinitialiser</span>
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Tableau des transactions */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="bg-white rounded-2xl shadow-lg overflow-hidden mb-6"
+      >
+        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-800">Transactions financières</h3>
+          <div className="flex items-center space-x-2 space-x-reverse">
+            <span className="text-sm text-gray-600">
+              {filteredTransactions.length} transactions
+            </span>
+            <button 
+              onClick={handleAddTransaction}
+              className="text-sm text-blue-600 hover:text-blue-700 flex items-center"
+            >
+              <Plus size={16} className="ml-1" />
+              Ajouter
+            </button>
+          </div>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr className="text-right">
+                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Numéro
+                </th>
+                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Bénéficiaire
+                </th>
+                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Montant
+                </th>
+                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Statut
+                </th>
+                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {paginatedTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-6 py-12 text-center">
+                    <div className="text-gray-400">
+                      <DollarSign className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg font-medium">Aucune transaction</p>
+                      <p className="mt-2">Cliquez sur "Nouvelle transaction" pour commencer</p>
+                      <button 
+                        onClick={handleAddTransaction}
+                        className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                      >
+                        Ajouter une transaction
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                paginatedTransactions.map((transaction, index) => {
+                  const StatusIcon = statusConfig[transaction.status]?.icon || Clock;
+                  const typeLabel = transactionTypes.find(t => t.value === transaction.transaction_type)?.label || transaction.transaction_type;
+                  const isPositive = transaction.category === 'income' && transaction.transaction_type !== 'scholarship' && transaction.transaction_type !== 'refund';
+                  
+                  // Déterminer le bénéficiaire
+                  let beneficiary = 'Système';
+                  let beneficiaryId = '';
+                  let beneficiaryType = '';
+                  
+                  if (transaction.student_name) {
+                    beneficiary = transaction.student_name;
+                    beneficiaryId = transaction.student_id;
+                    beneficiaryType = 'student';
+                  } else if (transaction.teacher_name) {
+                    beneficiary = transaction.teacher_name;
+                    beneficiaryId = transaction.teacher_id;
+                    beneficiaryType = 'teacher';
+                  }
+                  
+                  return (
+                    <motion.tr
+                      key={transaction.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="hover:bg-gray-50 text-right"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-mono font-bold text-blue-600">
+                          {transaction.transaction_number || `#${transaction.id?.toString().padStart(3, '0')}`}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center justify-end">
+                          <div>
+                            <div className="font-medium text-gray-900">{beneficiary}</div>
+                            <div className="text-xs text-gray-500">
+                              {beneficiaryId && (
+                                <>
+                                  {beneficiaryType === 'student' ? 'Étudiant' : 'Enseignant'}: {beneficiaryId}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mr-3 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+                            {beneficiaryType === 'student' ? <GraduationCap size={14} /> : 
+                             beneficiaryType === 'teacher' ? <Users size={14} /> : 
+                             <Building size={14} />}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                          {typeLabel}
+                        </span>
+                        {transaction.category && (
+                          <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${
+                            transaction.category === 'income' ? 'bg-green-100 text-green-800' :
+                            transaction.category === 'expense' ? 'bg-red-100 text-red-800' :
+                            transaction.category === 'salary' ? 'bg-blue-100 text-blue-800' :
+                            transaction.category === 'scholarship' ? 'bg-purple-100 text-purple-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {transaction.category === 'income' ? 'Revenu' :
+                             transaction.category === 'expense' ? 'Dépense' :
+                             transaction.category === 'salary' ? 'Salaire' :
+                             transaction.category === 'scholarship' ? 'Bourse' : 'Autre'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className={`font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                          {isPositive ? '+' : ''}{formatCurrency(transaction.amount)}
+                          {transaction.paid_amount > 0 && transaction.paid_amount < transaction.amount && (
+                            <div className="text-xs text-gray-500">
+                              Payé: {formatCurrency(transaction.paid_amount)}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-600">
+                          {transaction.date ? new Date(transaction.date).toLocaleDateString('fr-FR') : '---'}
+                          {transaction.due_date && (
+                            <div className="text-xs text-gray-500">
+                              Échéance: {new Date(transaction.due_date).toLocaleDateString('fr-FR')}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center justify-end">
+                          <span className={`px-3 py-1 text-xs font-medium rounded-full ${statusConfig[transaction.status]?.color || 'bg-gray-100 text-gray-800'}`}>
+                            {statusConfig[transaction.status]?.label || transaction.status}
+                          </span>
+                          <StatusIcon size={16} className="mr-2" />
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex space-x-2 space-x-reverse justify-end">
+                          <button 
+                            onClick={() => handleViewTransaction(transaction)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            title="Voir détails"
+                          >
+                            <Eye size={18} />
+                          </button>
+                          <button 
+                            onClick={() => handleEditTransaction(transaction)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                            title="Modifier"
+                          >
+                            <Edit size={18} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteTransaction(transaction.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                            title="Supprimer"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+            <div className="text-sm text-gray-700">
+              Affichage {startIndex + 1} à {Math.min(startIndex + itemsPerPage, filteredTransactions.length)} 
+              sur {filteredTransactions.length} transactions
+            </div>
+            <div className="flex space-x-2 space-x-reverse">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition"
+              >
+                <ChevronRight size={20} />
+              </button>
+              
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-10 h-10 rounded-lg transition ${
+                      currentPage === pageNum
+                        ? 'bg-blue-600 text-white'
+                        : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition"
+              >
+                <ChevronLeft size={20} />
+              </button>
+            </div>
+          </div>
+        )}
+      </motion.div>
+
+      {/* Analyse financière */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+      >
+        {/* Répartition des revenus */}
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-semibold text-gray-800">Répartition des transactions</h3>
+            <button 
+              onClick={fetchData}
+              className="text-sm text-blue-600 hover:text-blue-700 flex items-center"
+            >
+              <RefreshCw size={16} className="ml-1" />
+              Actualiser
+            </button>
+          </div>
+          
+          {(statistics.transaction_distribution && statistics.transaction_distribution.length > 0) || 
+           safeTransactions.length > 0 ? (
+            <div className="space-y-4">
+              {/* Utiliser les statistiques API ou calculer localement */}
+              {(statistics.transaction_distribution || []).length > 0 ? (
+                statistics.transaction_distribution.map((item, index) => {
+                  const percentage = statistics.total_income > 0 
+                    ? Math.round((Math.abs(item.total) / statistics.total_income) * 100) 
+                    : 0;
+                  const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-yellow-500', 'bg-pink-500', 'bg-indigo-500', 'bg-red-500'];
+                  const frenchTypes = {
+                    'tuition': 'Frais de scolarité',
+                    'exam_fee': 'Frais d\'examen',
+                    'library_fee': 'Frais de bibliothèque',
+                    'lab_fee': 'Frais de laboratoire',
+                    'scholarship': 'Bourses d\'études',
+                    'refund': 'Remboursements',
+                    'salary': 'Salaires',
+                    'maintenance': 'Maintenance',
+                    'equipment': 'Équipement',
+                    'other': 'Autre'
+                  };
+                  
+                  const isNegative = (item.total || 0) < 0;
+                  
+                  return (
+                    <div key={index} className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium text-gray-700">
+                          {frenchTypes[item.transaction_type] || item.transaction_type}
+                        </span>
+                        <span className={`font-bold ${isNegative ? 'text-red-600' : 'text-gray-800'}`}>
+                          {formatCurrency(item.total)}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div 
+                          className={`h-3 rounded-full ${colors[index % colors.length]}`}
+                          style={{ width: `${Math.min(100, percentage)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>{percentage}% du total</span>
+                        <span>{item.count || 0} transactions</span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                // Calcul local si pas de statistiques API
+                (() => {
+                  const types = {};
+                  safeTransactions.forEach(t => {
+                    if (!types[t.transaction_type]) {
+                      types[t.transaction_type] = { total: 0, count: 0 };
+                    }
+                    types[t.transaction_type].total += parseFloat(t.amount) || 0;
+                    types[t.transaction_type].count++;
+                  });
+                  
+                  const totalAmount = Object.values(types).reduce((sum, t) => sum + Math.abs(t.total), 0);
+                  
+                  return Object.entries(types).map(([type, data], index) => {
+                    const percentage = totalAmount > 0 ? Math.round((Math.abs(data.total) / totalAmount) * 100) : 0;
+                    const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-yellow-500', 'bg-pink-500', 'bg-indigo-500', 'bg-red-500'];
+                    const frenchTypes = {
+                      'tuition': 'Frais de scolarité',
+                      'exam_fee': 'Frais d\'examen',
+                      'library_fee': 'Frais de bibliothèque',
+                      'lab_fee': 'Frais de laboratoire',
+                      'scholarship': 'Bourses d\'études',
+                      'refund': 'Remboursements',
+                      'salary': 'Salaires',
+                      'maintenance': 'Maintenance',
+                      'equipment': 'Équipement',
+                      'other': 'Autre'
+                    };
+                    
+                    const isNegative = (data.total || 0) < 0;
+                    
+                    return (
+                      <div key={type} className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium text-gray-700">
+                            {frenchTypes[type] || type}
+                          </span>
+                          <span className={`font-bold ${isNegative ? 'text-red-600' : 'text-gray-800'}`}>
+                            {formatCurrency(data.total)}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div 
+                            className={`h-3 rounded-full ${colors[index % colors.length]}`}
+                            style={{ width: `${Math.min(100, percentage)}%` }}
+                          ></div>
+                        </div>
+                        <div className="flex justify-between text-sm text-gray-600">
+                          <span>{percentage}% du total</span>
+                          <span>{data.count} transactions</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <DollarSign className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Aucune donnée disponible</p>
+              <p className="mt-2">Les transactions seront affichées ici</p>
+            </div>
+          )}
+        </div>
+
+        {/* Liste des budgets */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-semibold text-gray-800">Budgets</h3>
+            <div className="flex space-x-2">
+              <button 
+                onClick={handleAddBudget}
+                className="text-sm text-blue-600 hover:text-blue-700 flex items-center"
+              >
+                <Plus size={16} className="ml-1" />
+                Ajouter
+              </button>
+              <button 
+                onClick={() => {
+                  const activeOnly = budgets.filter(b => b.is_active);
+                  showToast(`${activeOnly.length} budgets actifs`, 'info');
+                }}
+                className="text-sm text-gray-600 hover:text-gray-700"
+              >
+                Voir tous
+              </button>
+            </div>
+          </div>
+          
+          <div className="space-y-4">
+            {Array.isArray(budgets) && budgets.length > 0 ? (
+              budgets.slice(0, 5).map((budget) => {
+                const remaining = budget.remaining_amount || (budget.allocated_amount - budget.spent_amount);
+                const percentageSpent = budget.allocated_amount > 0 
+                  ? Math.round((budget.spent_amount / budget.allocated_amount) * 100) 
+                  : 0;
+                const isOverBudget = percentageSpent > 100;
+                const isWarning = percentageSpent > 80;
+                
+                return (
+                  <motion.div
+                    key={budget.id}
+                    whileHover={{ scale: 1.02 }}
+                    className="p-4 border border-gray-200 rounded-xl hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <div className="flex items-center">
+                          <Building size={16} className="text-gray-500 ml-2" />
+                          <h4 className="font-semibold text-gray-800">{budget.department_display || budget.department}</h4>
+                          {!budget.is_active && (
+                            <span className="ml-2 px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
+                              Inactif
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {budget.budget_type_display || budget.budget_type} - {budget.year}
+                        </p>
+                      </div>
+                      <div className="flex space-x-1 space-x-reverse">
+                        <button 
+                          onClick={() => handleEditBudget(budget)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                          title="Modifier"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteBudget(budget.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                          title="Supprimer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-gray-50 p-2 rounded-lg">
+                          <p className="text-xs text-gray-500">Alloué</p>
+                          <p className="font-bold text-gray-800">{formatSimpleCurrency(budget.allocated_amount)}</p>
+                        </div>
+                        <div className="bg-gray-50 p-2 rounded-lg">
+                          <p className="text-xs text-gray-500">Dépensé</p>
+                          <p className={`font-bold ${isOverBudget ? 'text-red-600' : 'text-gray-800'}`}>
+                            {formatSimpleCurrency(budget.spent_amount)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="bg-blue-50 p-2 rounded-lg">
+                        <div className="flex justify-between mb-1">
+                          <p className="text-xs text-blue-600">Restant</p>
+                          <p className={`text-xs font-medium ${remaining >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatSimpleCurrency(remaining)}
+                          </p>
+                        </div>
+                        <div className="w-full bg-gray-300 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${isOverBudget ? 'bg-red-500' : isWarning ? 'bg-yellow-500' : 'bg-green-500'}`}
+                            style={{ width: `${Math.min(100, percentageSpent)}%` }}
+                          ></div>
+                        </div>
+                        <div className="flex justify-between mt-1">
+                          <span className="text-xs text-gray-500">0%</span>
+                          <span className="text-xs font-medium text-gray-700">{percentageSpent}%</span>
+                          <span className="text-xs text-gray-500">100%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Building size={24} />
+                </div>
+                <p className="text-lg font-medium">Aucun budget</p>
+                <p className="mt-2 mb-4">Ajoutez des budgets pour gérer les dépenses</p>
+                <button 
+                  onClick={handleAddBudget}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                >
+                  Créer premier budget
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Modals */}
+      {showTransactionModal && (
+        <FinanceModal
+          type="transaction"
+          isOpen={showTransactionModal}
+          onClose={() => {
+            setShowTransactionModal(false);
+            setSelectedTransaction(null);
+          }}
+          data={selectedTransaction}
+          mode={modalMode}
+          onSave={handleSaveTransaction}
+        />
+      )}
+
+      {showBudgetModal && (
+        <FinanceModal
+          type="budget"
+          isOpen={showBudgetModal}
+          onClose={() => {
+            setShowBudgetModal(false);
+            setSelectedBudget(null);
+          }}
+          data={selectedBudget}
+          mode={modalMode}
+          onSave={handleSaveBudget}
+        />
+      )}
+    </div>
+  );
+};
+
+export default Finance;    ou import React, { useState, useEffect } from 'react';
+import { X, Save, DollarSign, Calendar, CreditCard, Award, BookOpen, FileText, Users, AlertCircle, Building, Loader, GraduationCap, Briefcase } from 'lucide-react';
+import { studentService, teacherService } from '../services/api';
+
+const FinanceModal = ({ type, isOpen, onClose, data, mode, onSave }) => {
+  const [formData, setFormData] = useState(getInitialFormData(type));
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [students, setStudents] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
+  const [beneficiaryType, setBeneficiaryType] = useState('student');
+
+  function getInitialFormData(formType) {
+    if (formType === 'transaction') {
+      return {
+        student: '',
+        teacher: '',
+        transaction_type: 'tuition',
+        amount: '',
+        date: new Date().toISOString().split('T')[0],
+        due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'pending',
+        method: 'bank_transfer',
+        description: '',
+        is_recurring: false,
+        recurrence_period: ''
+      };
+    } else {
+      return {
+        department: 'engineering',
+        budget_type: 'operational',
+        year: new Date().getFullYear(),
+        allocated_amount: '',
+        spent_amount: '0',
+        committed_amount: '0',
+        description: '',
+        is_active: true
+      };
+    }
+  }
+
+  useEffect(() => {
+    if (data && isOpen) {
+      console.log(`?? Données ${type} reçues:`, data);
+      
+      if (type === 'transaction') {
+        // Déterminer le type de bénéficiaire
+        if (data.teacher) {
+          setBeneficiaryType('teacher');
+        } else {
+          setBeneficiaryType('student');
+        }
+        
+        setFormData({
+          student: data.student?.id || data.student || '',
+          teacher: data.teacher?.id || data.teacher || '',
+          transaction_type: data.transaction_type || 'tuition',
+          amount: data.amount || '',
+          date: data.date ? data.date.split('T')[0] : new Date().toISOString().split('T')[0],
+          due_date: data.due_date ? data.due_date.split('T')[0] : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          status: data.status || 'pending',
+          method: data.method || 'bank_transfer',
+          description: data.description || '',
+          is_recurring: data.is_recurring || false,
+          recurrence_period: data.recurrence_period || ''
+        });
+      } else {
+        setFormData({
+          department: data.department || 'engineering',
+          budget_type: data.budget_type || 'operational',
+          year: data.year || new Date().getFullYear(),
+          allocated_amount: data.allocated_amount || '',
+          spent_amount: data.spent_amount || '0',
+          committed_amount: data.committed_amount || '0',
+          description: data.description || '',
+          is_active: data.is_active !== undefined ? data.is_active : true
+        });
+      }
+    } else if (isOpen) {
+      setFormData(getInitialFormData(type));
+      setBeneficiaryType('student');
+    }
+    setErrors({});
+  }, [data, isOpen, type]);
+
+  // Charger les étudiants et enseignants
+  useEffect(() => {
+    const loadData = async () => {
+      if (type === 'transaction' && isOpen && mode !== 'view') {
+        try {
+          setLoadingStudents(true);
+          setLoadingTeachers(true);
+          
+          // Charger les étudiants
+          const studentsResponse = await studentService.getAll({ page_size: 100 });
+          let studentsData = [];
+          if (studentsResponse.data && studentsResponse.data.success && Array.isArray(studentsResponse.data.data)) {
+            studentsData = studentsResponse.data.data;
+          } else if (Array.isArray(studentsResponse.data)) {
+            studentsData = studentsResponse.data;
+          }
+          setStudents(studentsData);
+          
+          // Charger les enseignants
+          const teachersResponse = await teacherService.getAll({ page_size: 100 });
+          let teachersData = [];
+          if (teachersResponse.data && teachersResponse.data.success && Array.isArray(teachersResponse.data.data)) {
+            teachersData = teachersResponse.data.data;
+          } else if (Array.isArray(teachersResponse.data)) {
+            teachersData = teachersResponse.data;
+          }
+          setTeachers(teachersData);
+          
+          console.log(`? ${studentsData.length} étudiants et ${teachersData.length} enseignants chargés`);
+        } catch (error) {
+          console.error("? Erreur chargement des données:", error);
+          setStudents([]);
+          setTeachers([]);
+        } finally {
+          setLoadingStudents(false);
+          setLoadingTeachers(false);
+        }
+      }
+    };
+    
+    if (isOpen) {
+      loadData();
+    }
+  }, [isOpen, type, mode]);
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (type === 'transaction') {
+      // Vérifier le bénéficiaire
+      if (beneficiaryType === 'student' && !formData.student) {
+        newErrors.student = "L'étudiant est requis";
+      } else if (beneficiaryType === 'teacher' && !formData.teacher) {
+        newErrors.teacher = "L'enseignant est requis";
+      }
+      
+      // Vérifier le montant
+      if (!formData.amount || isNaN(parseFloat(formData.amount))) {
+        newErrors.amount = "Le montant doit être un nombre valide";
+      } else if (formData.transaction_type !== 'scholarship' && 
+                 formData.transaction_type !== 'refund' && 
+                 parseFloat(formData.amount) <= 0) {
+        newErrors.amount = "Le montant doit être positif";
+      }
+      
+      // Vérifier la date d'échéance
+      if (!formData.due_date) {
+        newErrors.due_date = "La date d'échéance est requise";
+      }
+      
+      // Vérifier le type de transaction
+      if (!formData.transaction_type) {
+        newErrors.transaction_type = "Le type de transaction est requis";
+      }
+    } else {
+      if (!formData.department) newErrors.department = "Le département est requis";
+      if (!formData.budget_type) newErrors.budget_type = "Le type de budget est requis";
+      if (!formData.year || formData.year < 2000 || formData.year > 2100) {
+        newErrors.year = "L'année doit être valide (2000-2100)";
+      }
+      if (!formData.allocated_amount || isNaN(parseFloat(formData.allocated_amount)) || parseFloat(formData.allocated_amount) <= 0) {
+        newErrors.allocated_amount = "Le montant alloué doit être un nombre positif";
+      }
+      if (formData.spent_amount && (isNaN(parseFloat(formData.spent_amount)) || parseFloat(formData.spent_amount) < 0)) {
+        newErrors.spent_amount = "Le montant dépensé doit être un nombre positif ou zéro";
+      }
+      if (formData.committed_amount && (isNaN(parseFloat(formData.committed_amount)) || parseFloat(formData.committed_amount) < 0)) {
+        newErrors.committed_amount = "Le montant engagé doit être un nombre positif ou zéro";
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+    
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: undefined }));
+    }
+  };
+
+  const handleBeneficiaryTypeChange = (type) => {
+    setBeneficiaryType(type);
+    // Réinitialiser l'autre champ
+    if (type === 'student') {
+      setFormData(prev => ({ ...prev, teacher: '' }));
+    } else {
+      setFormData(prev => ({ ...prev, student: '' }));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      // Préparer les données pour l'API
+      const submissionData = { ...formData };
+      
+      // Convertir les montants en nombres
+      if (type === 'transaction') {
+        submissionData.amount = parseFloat(submissionData.amount);
+        
+        // Pour les bourses et remboursements, s'assurer que le montant est négatif
+        if (submissionData.transaction_type === 'scholarship' || submissionData.transaction_type === 'refund') {
+          submissionData.amount = -Math.abs(submissionData.amount);
+        }
+        
+        // Ne garder que le bénéficiaire sélectionné
+        if (beneficiaryType === 'student') {
+          submissionData.student = parseInt(submissionData.student);
+          delete submissionData.teacher;
+        } else {
+          submissionData.teacher = parseInt(submissionData.teacher);
+          delete submissionData.student;
+        }
+        
+        // Gérer les dates
+        if (!submissionData.date) {
+          submissionData.date = new Date().toISOString().split('T')[0];
+        }
+      } else {
+        submissionData.allocated_amount = parseFloat(submissionData.allocated_amount);
+        submissionData.spent_amount = parseFloat(submissionData.spent_amount || 0);
+        submissionData.committed_amount = parseFloat(submissionData.committed_amount || 0);
+        submissionData.year = parseInt(submissionData.year);
+      }
+      
+      console.log(`?? Données à sauvegarder (${type}):`, submissionData);
+      await onSave(submissionData);
+    } catch (error) {
+      console.error(`? Erreur de soumission ${type}:`, error);
+      if (!error.response) {
+        showToast('Erreur de connexion au serveur', 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const transactionTypes = [
+    { value: 'tuition', label: 'Frais de scolarité', icon: BookOpen, category: 'income' },
+    { value: 'exam_fee', label: 'Frais d\'examen', icon: FileText, category: 'income' },
+    { value: 'library_fee', label: 'Frais de bibliothèque', icon: BookOpen, category: 'income' },
+    { value: 'lab_fee', label: 'Frais de laboratoire', icon: BookOpen, category: 'income' },
+    { value: 'scholarship', label: 'Bourse d\'études', icon: Award, category: 'scholarship' },
+    { value: 'refund', label: 'Remboursement', icon: DollarSign, category: 'scholarship' },
+    { value: 'salary', label: 'Salaire enseignant', icon: Users, category: 'salary' },
+    { value: 'maintenance', label: 'Maintenance', icon: Building, category: 'expense' },
+    { value: 'equipment', label: 'Équipement', icon: Building, category: 'expense' },
+    { value: 'other', label: 'Autre', icon: DollarSign, category: 'expense' }
+  ];
+
+  const statusOptions = [
+    { value: 'pending', label: 'En attente' },
+    { value: 'paid', label: 'Payé' },
+    { value: 'overdue', label: 'En retard' },
+    { value: 'partial', label: 'Partiel' },
+    { value: 'cancelled', label: 'Annulé' }
+  ];
+
+  const methodOptions = [
+    { value: 'bank_transfer', label: 'Virement bancaire' },
+    { value: 'credit_card', label: 'Carte de crédit' },
+    { value: 'cash', label: 'Espèces' },
+    { value: 'check', label: 'Chèque' },
+    { value: 'mobile_payment', label: 'Paiement mobile' }
+  ];
+
+  const departmentOptions = [
+    { value: 'engineering', label: 'Faculté d\'Ingénierie' },
+    { value: 'medicine', label: 'Faculté de Médecine' },
+    { value: 'sciences', label: 'Faculté des Sciences' },
+    { value: 'arts', label: 'Faculté des Arts' },
+    { value: 'economics', label: 'Faculté d\'Économie' },
+    { value: 'law', label: 'Faculté de Droit' },
+    { value: 'administration', label: 'Administration Générale' },
+    { value: 'it', label: 'Centre Informatique' },
+    { value: 'library', label: 'Bibliothèque Centrale' },
+    { value: 'student_affairs', label: 'Affaires Étudiantes' },
+    { value: 'maintenance', label: 'Maintenance' },
+    { value: 'salaries', label: 'Salaires' }
+  ];
+
+  const budgetTypeOptions = [
+    { value: 'operational', label: 'Opérationnel' },
+    { value: 'capital', label: 'Capital' },
+    { value: 'salary', label: 'Salaires' },
+    { value: 'scholarship', label: 'Bourses' },
+    { value: 'development', label: 'Développement' }
+  ];
+
+  const recurrenceOptions = [
+    { value: '', label: 'Aucune' },
+    { value: 'monthly', label: 'Mensuel' },
+    { value: 'quarterly', label: 'Trimestriel' },
+    { value: 'yearly', label: 'Annuel' }
+  ];
+
+  // Fonction pour afficher des notifications (à implémenter)
+  const showToast = (message, type) => {
+    console.log(`${type}: ${message}`);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b">
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full transition"
+            disabled={loading}
+          >
+            <X size={24} />
+          </button>
+          <div className="flex items-center space-x-3 space-x-reverse">
+            {type === 'transaction' ? (
+              <DollarSign className="text-blue-600" size={24} />
+            ) : (
+              <Building className="text-green-600" size={24} />
+            )}
+            <h2 className="text-2xl font-bold text-gray-800">
+              {mode === 'create' ? 'Ajouter' : mode === 'edit' ? 'Modifier' : 'Détails'} 
+              {' '}{type === 'transaction' ? 'une transaction' : 'un budget'}
+            </h2>
+          </div>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit}>
+          <div className="p-6 space-y-6">
+            {loading && (
+              <div className="flex items-center justify-center p-4 bg-blue-50 rounded-lg">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <span className="mr-3 text-blue-600">Traitement en cours...</span>
+              </div>
+            )}
+
+            {type === 'transaction' ? (
+              <>
+                {/* Informations transaction */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-700 flex items-center justify-end">
+                    <span className="mr-2">Informations de la transaction</span>
+                    <DollarSign size={18} />
+                  </h3>
+                  
+                  {/* Sélection du bénéficiaire */}
+                  <div className="text-right">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Bénéficiaire *
+                    </label>
+                    <div className="flex space-x-4 space-x-reverse mb-4">
+                      <button
+                        type="button"
+                        onClick={() => handleBeneficiaryTypeChange('student')}
+                        className={`flex-1 py-2 px-4 rounded-lg border transition ${
+                          beneficiaryType === 'student'
+                            ? 'border-blue-500 bg-blue-50 text-blue-600'
+                            : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-center">
+                          <GraduationCap size={18} className="ml-2" />
+                          <span>Étudiant</span>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBeneficiaryTypeChange('teacher')}
+                        className={`flex-1 py-2 px-4 rounded-lg border transition ${
+                          beneficiaryType === 'teacher'
+                            ? 'border-blue-500 bg-blue-50 text-blue-600'
+                            : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-center">
+                          <Briefcase size={18} className="ml-2" />
+                          <span>Enseignant</span>
+                        </div>
+                      </button>
+                    </div>
+                    
+                    {beneficiaryType === 'student' ? (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <Users className="inline ml-1" size={14} />
+                          Étudiant *
+                        </label>
+                        {loadingStudents ? (
+                          <div className="flex items-center justify-end py-2">
+                            <Loader size={16} className="animate-spin ml-2" />
+                            <span className="text-sm text-gray-500">Chargement des étudiants...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <select
+                              name="student"
+                              value={formData.student}
+                              onChange={handleChange}
+                              required
+                              disabled={mode === 'view' || loading}
+                              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right ${
+                                errors.student ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                              dir="rtl"
+                            >
+                              <option value="">Sélectionner un étudiant</option>
+                              {students.map(student => (
+                                <option key={student.id} value={student.id}>
+                                  {student.student_id} - {student.user?.first_name} {student.user?.last_name}
+                                </option>
+                              ))}
+                            </select>
+                            {errors.student && (
+                              <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                                <AlertCircle size={14} className="ml-1" />
+                                {errors.student}
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <Briefcase className="inline ml-1" size={14} />
+                          Enseignant *
+                        </label>
+                        {loadingTeachers ? (
+                          <div className="flex items-center justify-end py-2">
+                            <Loader size={16} className="animate-spin ml-2" />
+                            <span className="text-sm text-gray-500">Chargement des enseignants...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <select
+                              name="teacher"
+                              value={formData.teacher}
+                              onChange={handleChange}
+                              required
+                              disabled={mode === 'view' || loading}
+                              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right ${
+                                errors.teacher ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                              dir="rtl"
+                            >
+                              <option value="">Sélectionner un enseignant</option>
+                              {teachers.map(teacher => (
+                                <option key={teacher.id} value={teacher.id}>
+                                  {teacher.teacher_id} - {teacher.user?.first_name} {teacher.user?.last_name}
+                                </option>
+                              ))}
+                            </select>
+                            {errors.teacher && (
+                              <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                                <AlertCircle size={14} className="ml-1" />
+                                {errors.teacher}
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Type de transaction */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Type de transaction *
+                      </label>
+                      <select
+                        name="transaction_type"
+                        value={formData.transaction_type}
+                        onChange={handleChange}
+                        required
+                        disabled={mode === 'view' || loading}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right ${
+                          errors.transaction_type ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        dir="rtl"
+                      >
+                        {transactionTypes.map(type => (
+                          <option key={type.value} value={type.value}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.transaction_type && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                          <AlertCircle size={14} className="ml-1" />
+                          {errors.transaction_type}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Montant */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <DollarSign className="inline ml-1" size={14} />
+                        Montant (TND) *
+                      </label>
+                      <input
+                        type="number"
+                        name="amount"
+                        value={formData.amount}
+                        onChange={handleChange}
+                        required
+                        step="0.001"
+                        min={formData.transaction_type === 'scholarship' || formData.transaction_type === 'refund' ? undefined : "0.001"}
+                        disabled={mode === 'view' || loading}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right ${
+                          errors.amount ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="0.000"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formData.transaction_type === 'scholarship' || formData.transaction_type === 'refund' 
+                          ? 'Montant négatif (débit)' 
+                          : 'Montant positif (crédit)'}
+                      </p>
+                      {errors.amount && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                          <AlertCircle size={14} className="ml-1" />
+                          {errors.amount}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Statut */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Statut
+                      </label>
+                      <select
+                        name="status"
+                        value={formData.status}
+                        onChange={handleChange}
+                        disabled={mode === 'view' || loading}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
+                        dir="rtl"
+                      >
+                        {statusOptions.map(status => (
+                          <option key={status.value} value={status.value}>
+                            {status.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Date de transaction */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <Calendar className="inline ml-1" size={14} />
+                        Date
+                      </label>
+                      <input
+                        type="date"
+                        name="date"
+                        value={formData.date}
+                        onChange={handleChange}
+                        disabled={mode === 'view' || loading}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
+                      />
+                    </div>
+
+                    {/* Date d'échéance */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <Calendar className="inline ml-1" size={14} />
+                        Date d'échéance *
+                      </label>
+                      <input
+                        type="date"
+                        name="due_date"
+                        value={formData.due_date}
+                        onChange={handleChange}
+                        required
+                        disabled={mode === 'view' || loading}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right ${
+                          errors.due_date ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      />
+                      {errors.due_date && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                          <AlertCircle size={14} className="ml-1" />
+                          {errors.due_date}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Mode de paiement */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <CreditCard className="inline ml-1" size={14} />
+                        Mode de paiement
+                      </label>
+                      <select
+                        name="method"
+                        value={formData.method}
+                        onChange={handleChange}
+                        disabled={mode === 'view' || loading}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
+                        dir="rtl"
+                      >
+                        {methodOptions.map(method => (
+                          <option key={method.value} value={method.value}>
+                            {method.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Transaction récurrente */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Transaction récurrente
+                      </label>
+                      <div className="flex items-center justify-end">
+                        <input
+                          type="checkbox"
+                          name="is_recurring"
+                          checked={formData.is_recurring}
+                          onChange={handleChange}
+                          disabled={mode === 'view' || loading}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <span className="mr-2 text-sm text-gray-700">Récurrente</span>
+                      </div>
+                    </div>
+
+                    {/* Période de récurrence */}
+                    {formData.is_recurring && (
+                      <div className="text-right">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Période de récurrence
+                        </label>
+                        <select
+                          name="recurrence_period"
+                          value={formData.recurrence_period}
+                          onChange={handleChange}
+                          disabled={mode === 'view' || loading}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
+                          dir="rtl"
+                        >
+                          {recurrenceOptions.map(period => (
+                            <option key={period.value} value={period.value}>
+                              {period.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  <div className="text-right">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Description
+                    </label>
+                    <textarea
+                      name="description"
+                      value={formData.description}
+                      onChange={handleChange}
+                      rows="3"
+                      disabled={mode === 'view' || loading}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
+                      placeholder="Description de la transaction..."
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Informations budget */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-700 flex items-center justify-end">
+                    <span className="mr-2">Informations du budget</span>
+                    <Building size={18} />
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Département */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Département *
+                      </label>
+                      <select
+                        name="department"
+                        value={formData.department}
+                        onChange={handleChange}
+                        required
+                        disabled={mode === 'view' || loading}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right ${
+                          errors.department ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        dir="rtl"
+                      >
+                        {departmentOptions.map(dept => (
+                          <option key={dept.value} value={dept.value}>
+                            {dept.label}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.department && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                          <AlertCircle size={14} className="ml-1" />
+                          {errors.department}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Type de budget */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Type de budget *
+                      </label>
+                      <select
+                        name="budget_type"
+                        value={formData.budget_type}
+                        onChange={handleChange}
+                        required
+                        disabled={mode === 'view' || loading}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right ${
+                          errors.budget_type ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        dir="rtl"
+                      >
+                        {budgetTypeOptions.map(type => (
+                          <option key={type.value} value={type.value}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.budget_type && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                          <AlertCircle size={14} className="ml-1" />
+                          {errors.budget_type}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Année */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Année *
+                      </label>
+                      <input
+                        type="number"
+                        name="year"
+                        value={formData.year}
+                        onChange={handleChange}
+                        required
+                        min="2000"
+                        max="2100"
+                        disabled={mode === 'view' || loading}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right ${
+                          errors.year ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="2024"
+                      />
+                      {errors.year && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                          <AlertCircle size={14} className="ml-1" />
+                          {errors.year}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Statut actif */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Statut
+                      </label>
+                      <div className="flex items-center justify-end">
+                        <input
+                          type="checkbox"
+                          name="is_active"
+                          checked={formData.is_active}
+                          onChange={handleChange}
+                          disabled={mode === 'view' || loading}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <span className="mr-2 text-sm text-gray-700">Actif</span>
+                      </div>
+                    </div>
+
+                    {/* Montant alloué */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <DollarSign className="inline ml-1" size={14} />
+                        Montant alloué (TND) *
+                      </label>
+                      <input
+                        type="number"
+                        name="allocated_amount"
+                        value={formData.allocated_amount}
+                        onChange={handleChange}
+                        required
+                        min="0"
+                        step="0.001"
+                        disabled={mode === 'view' || loading}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right ${
+                          errors.allocated_amount ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="0.000"
+                      />
+                      {errors.allocated_amount && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                          <AlertCircle size={14} className="ml-1" />
+                          {errors.allocated_amount}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Montant dépensé */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <DollarSign className="inline ml-1" size={14} />
+                        Montant dépensé (TND)
+                      </label>
+                      <input
+                        type="number"
+                        name="spent_amount"
+                        value={formData.spent_amount}
+                        onChange={handleChange}
+                        min="0"
+                        step="0.001"
+                        disabled={mode === 'view' || loading}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right ${
+                          errors.spent_amount ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="0.000"
+                      />
+                      {errors.spent_amount && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                          <AlertCircle size={14} className="ml-1" />
+                          {errors.spent_amount}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Montant engagé */}
+                    <div className="text-right">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <DollarSign className="inline ml-1" size={14} />
+                        Montant engagé (TND)
+                      </label>
+                      <input
+                        type="number"
+                        name="committed_amount"
+                        value={formData.committed_amount}
+                        onChange={handleChange}
+                        min="0"
+                        step="0.001"
+                        disabled={mode === 'view' || loading}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right ${
+                          errors.committed_amount ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="0.000"
+                      />
+                      {errors.committed_amount && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                          <AlertCircle size={14} className="ml-1" />
+                          {errors.committed_amount}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div className="text-right">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Description
+                    </label>
+                    <textarea
+                      name="description"
+                      value={formData.description}
+                      onChange={handleChange}
+                      rows="3"
+                      disabled={mode === 'view' || loading}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
+                      placeholder="Description du budget..."
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-6 border-t flex justify-start space-x-4 space-x-reverse">
+            {(mode === 'create' || mode === 'edit') && (
+              <button
+                type="submit"
+                disabled={loading || (type === 'transaction' && (loadingStudents || loadingTeachers))}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center space-x-2 space-x-reverse disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save size={18} />
+                <span>{loading ? 'Enregistrement...' : (mode === 'edit' ? 'Mettre à jour' : 'Ajouter')}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+              disabled={loading}
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default FinanceModal;    ou api.js import axios from 'axios';
+
+const API_URL = 'http://localhost:8000/api';
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Intercepteur pour ajouter le token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Intercepteur pour rafraîchir le token
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        const refreshToken = localStorage.getItem('refresh_token');
+        const response = await axios.post(`${API_URL}/token/refresh/`, {
+          refresh: refreshToken
+        });
+        
+        localStorage.setItem('access_token', response.data.access);
+        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
+        
+        return api(originalRequest);
+      } catch (refreshError) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+// Services d'authentification
+export const authService = {
+  login: async (username, password) => {
+    const response = await api.post('/accounts/token/', { username, password });
+    if (response.data.access) {
+      localStorage.setItem('access_token', response.data.access);
+      localStorage.setItem('refresh_token', response.data.refresh);
+    }
+    return response.data;
+  },
+  
+  logout: () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+  },
+  
+  register: async (userData) => {
+    return await api.post('/accounts/register/', userData);
+  },
+  
+  getProfile: async () => {
+    return await api.get('/accounts/profile/');
+  },
+  
+  updateProfile: async (userData) => {
+    return await api.put('/accounts/profile/', userData);
+  },
+};
+
+// Services des étudiants (mettre à jour)
+// Services des étudiants
+export const studentService = {
+    getAll: async (params = {}) => {
+      console.log("Fetching students with params:", params);
+      const response = await api.get('/students/', { params });
+      console.log("Students response:", response.data);
+      return response;
+    },
+    
+    getById: async (id) => {
+      console.log("Fetching student with id:", id);
+      const response = await api.get(`/students/${id}/`);
+      console.log("Student response:", response.data);
+      return response;
+    },
+    
+    create: async (studentData) => {
+      console.log("Creating student with data:", studentData);
+      const response = await api.post('/students/', studentData);
+      console.log("Create student response:", response.data);
+      return response;
+    },
+    
+    update: async (id, studentData) => {
+      console.log(`Updating student ${id} with data:`, studentData);
+      const response = await api.put(`/students/${id}/`, studentData);
+      console.log("Update student response:", response.data);
+      return response;
+    },
+    
+    delete: async (id) => {
+      console.log("Deleting student with id:", id);
+      return await api.delete(`/students/${id}/`);
+    },
+    
+    getStatistics: async () => {
+      console.log("Fetching statistics");
+      const response = await api.get('/students/statistics/');
+      console.log("Statistics response:", response.data);
+      return response;
+    },
+  };
+
+// Services des enseignants (COMPLET)
+export const teacherService = {
+    getAll: async (params = {}) => {
+      console.log("Fetching teachers with params:", params);
+      const response = await api.get('/teachers/', { params });
+      console.log("Teachers response:", response.data);
+      return response;
+    },
+    
+    getById: async (id) => {
+      console.log("Fetching teacher with id:", id);
+      const response = await api.get(`/teachers/${id}/`);
+      console.log("Teacher response:", response.data);
+      return response;
+    },
+    
+    create: async (teacherData) => {
+      console.log("Creating teacher with data:", teacherData);
+      const response = await api.post('/teachers/', teacherData);
+      console.log("Create teacher response:", response.data);
+      return response;
+    },
+    
+    update: async (id, teacherData) => {
+      console.log(`Updating teacher ${id} with data:`, teacherData);
+      const response = await api.put(`/teachers/${id}/`, teacherData);
+      console.log("Update teacher response:", response.data);
+      return response;
+    },
+    
+    delete: async (id) => {
+      console.log("Deleting teacher with id:", id);
+      return await api.delete(`/teachers/${id}/`);
+    },
+    
+    // Nouvelle méthode pour les statistiques
+    getStatistics: async () => {
+      console.log("Fetching teacher statistics");
+      const response = await api.get('/teachers/statistics/');
+      console.log("Teacher statistics response:", response.data);
+      return response;
+    },
+    
+    // Export des données
+    exportData: async (format = 'csv') => {
+      return await api.get(`/teachers/export/?format=${format}`, {
+        responseType: 'blob'
+      });
+    },
+  };
+
+// Services des cours
+export const courseService = {
+  getAll: async (params = {}) => {
+    return await api.get('/courses/', { params });
+  },
+  
+  getById: async (id) => {
+    return await api.get(`/courses/${id}/`);
+  },
+  
+  create: async (courseData) => {
+    return await api.post('/courses/', courseData);
+  },
+  
+  update: async (id, courseData) => {
+    return await api.put(`/courses/${id}/`, courseData);
+  },
+  
+  delete: async (id) => {
+    return await api.delete(`/courses/${id}/`);
+  },
+};
+
+// Services des inscriptions
+export const enrollmentService = {
+  getAll: async (params = {}) => {
+    return await api.get('/enrollments/', { params });
+  },
+  
+  create: async (enrollmentData) => {
+    return await api.post('/enrollments/', enrollmentData);
+  },
+  
+  delete: async (id) => {
+    return await api.delete(`/enrollments/${id}/`);
+  },
+  
+  getByStudent: async (studentId) => {
+    return await api.get(`/enrollments/?student=${studentId}`);
+  },
+  
+  getByCourse: async (courseId) => {
+    return await api.get(`/enrollments/?course=${courseId}`);
+  },
+};
+
+// Services des examens
+export const examService = {
+  getAll: async (params = {}) => {
+    return await api.get('/exams/exams/', { params });
+  },
+  
+  getById: async (id) => {
+    return await api.get(`/exams/exams/${id}/`);
+  },
+  
+  create: async (examData) => {
+    return await api.post('/exams/exams/', examData);
+  },
+  
+  update: async (id, examData) => {
+    return await api.put(`/exams/exams/${id}/`, examData);
+  },
+  
+  delete: async (id) => {
+    return await api.delete(`/exams/exams/${id}/`);
+  },
+};
+
+// Services des notes
+export const gradeService = {
+  getAll: async (params = {}) => {
+    return await api.get('/exams/grades/', { params });
+  },
+  
+  getById: async (id) => {
+    return await api.get(`/exams/grades/${id}/`);
+  },
+  
+  create: async (gradeData) => {
+    return await api.post('/exams/grades/', gradeData);
+  },
+  
+  update: async (id, gradeData) => {
+    return await api.put(`/exams/grades/${id}/`, gradeData);
+  },
+  
+  delete: async (id) => {
+    return await api.delete(`/exams/grades/${id}/`);
+  },
+  
+  getByStudent: async (studentId) => {
+    return await api.get(`/exams/grades/?student=${studentId}`);
+  },
+  
+  getByExam: async (examId) => {
+    return await api.get(`/exams/grades/?exam=${examId}`);
+  },
+};
+
+// Services financiers - VERSION CORRIGÉE
+export const financeService = {
+    // Transactions
+    getTransactions: async (params = {}) => {
+      console.log("?? Fetching transactions with params:", params);
+      try {
+        const response = await api.get('/finance/transactions/', { params });
+        console.log("?? Transactions API Response:", {
+          status: response.status,
+          data: response.data,
+          success: response.data?.success,
+          hasDataArray: Array.isArray(response.data?.data),
+          count: response.data?.count,
+          keys: Object.keys(response.data || {})
+        });
+        return response;
+      } catch (error) {
+        console.error("? Error fetching transactions:", error.response?.data || error.message);
+        throw error;
+      }
+    },
+    
+    getTransactionById: async (id) => {
+      console.log(`?? Fetching transaction ${id}`);
+      try {
+        const response = await api.get(`/finance/transactions/${id}/`);
+        console.log("?? Transaction response:", response.data);
+        return response;
+      } catch (error) {
+        console.error(`? Error fetching transaction ${id}:`, error);
+        throw error;
+      }
+    },
+    
+    createTransaction: async (transactionData) => {
+      console.log("?? Creating transaction:", transactionData);
+      try {
+        // Formater les données correctement
+        const formattedData = {
+          ...transactionData,
+          amount: parseFloat(transactionData.amount) || 0,
+          student: transactionData.student ? parseInt(transactionData.student) : null,
+          due_date: transactionData.due_date || new Date().toISOString().split('T')[0]
+        };
+        
+        console.log("?? Sending formatted transaction data:", formattedData);
+        const response = await api.post('/finance/transactions/', formattedData);
+        console.log("? Transaction created response:", response.data);
+        return response;
+      } catch (error) {
+        console.error("? Error creating transaction:", error.response?.data || error.message);
+        throw error;
+      }
+    },
+    
+    updateTransaction: async (id, transactionData) => {
+      console.log(`?? Updating transaction ${id}:`, transactionData);
+      try {
+        const formattedData = {
+          ...transactionData,
+          amount: transactionData.amount ? parseFloat(transactionData.amount) : undefined,
+          student: transactionData.student ? parseInt(transactionData.student) : undefined
+        };
+        
+        const response = await api.put(`/finance/transactions/${id}/`, formattedData);
+        console.log("? Transaction updated:", response.data);
+        return response;
+      } catch (error) {
+        console.error(`? Error updating transaction ${id}:`, error.response?.data || error.message);
+        throw error;
+      }
+    },
+    
+    deleteTransaction: async (id) => {
+      console.log(`??? Deleting transaction ${id}`);
+      try {
+        const response = await api.delete(`/finance/transactions/${id}/`);
+        console.log("? Transaction deleted");
+        return response;
+      } catch (error) {
+        console.error(`? Error deleting transaction ${id}:`, error);
+        throw error;
+      }
+    },
+    
+    // Budgets
+    getBudgets: async (params = {}) => {
+      console.log("?? Fetching budgets");
+      try {
+        const response = await api.get('/finance/budgets/', { params });
+        console.log("?? Budgets API Response:", {
+          status: response.status,
+          data: response.data,
+          success: response.data?.success,
+          hasDataArray: Array.isArray(response.data?.data)
+        });
+        return response;
+      } catch (error) {
+        console.error("? Error fetching budgets:", error);
+        throw error;
+      }
+    },
+    
+    getBudgetById: async (id) => {
+      console.log(`?? Fetching budget ${id}`);
+      try {
+        const response = await api.get(`/finance/budgets/${id}/`);
+        return response;
+      } catch (error) {
+        console.error(`? Error fetching budget ${id}:`, error);
+        throw error;
+      }
+    },
+    
+    createBudget: async (budgetData) => {
+      console.log("?? Creating budget:", budgetData);
+      try {
+        const formattedData = {
+          ...budgetData,
+          allocated_amount: parseFloat(budgetData.allocated_amount) || 0,
+          spent_amount: parseFloat(budgetData.spent_amount || 0),
+          year: parseInt(budgetData.year) || new Date().getFullYear()
+        };
+        
+        const response = await api.post('/finance/budgets/', formattedData);
+        console.log("? Budget created:", response.data);
+        return response;
+      } catch (error) {
+        console.error("? Error creating budget:", error.response?.data || error.message);
+        throw error;
+      }
+    },
+    
+    updateBudget: async (id, budgetData) => {
+      console.log(`?? Updating budget ${id}:`, budgetData);
+      try {
+        const formattedData = {
+          ...budgetData,
+          allocated_amount: budgetData.allocated_amount ? parseFloat(budgetData.allocated_amount) : undefined,
+          spent_amount: budgetData.spent_amount ? parseFloat(budgetData.spent_amount) : undefined,
+          year: budgetData.year ? parseInt(budgetData.year) : undefined
+        };
+        
+        const response = await api.put(`/finance/budgets/${id}/`, formattedData);
+        return response;
+      } catch (error) {
+        console.error(`? Error updating budget ${id}:`, error.response?.data || error.message);
+        throw error;
+      }
+    },
+    
+    deleteBudget: async (id) => {
+      console.log(`??? Deleting budget ${id}`);
+      try {
+        const response = await api.delete(`/finance/budgets/${id}/`);
+        return response;
+      } catch (error) {
+        console.error(`? Error deleting budget ${id}:`, error);
+        throw error;
+      }
+    },
+    
+    // Statistiques
+    getStatistics: async () => {
+      console.log("?? Fetching finance statistics");
+      try {
+        const response = await api.get('/finance/statistics/');
+        console.log("?? Statistics response:", response.data);
+        return response;
+      } catch (error) {
+        console.error("? Error fetching statistics:", error);
+        throw error;
+      }
+    },
+    
+    // Transactions récentes
+    getRecentTransactions: async (limit = 10) => {
+      console.log(`?? Fetching recent transactions (limit: ${limit})`);
+      try {
+        const response = await api.get('/finance/recent-transactions/', { params: { limit } });
+        return response;
+      } catch (error) {
+        console.error("? Error fetching recent transactions:", error);
+        throw error;
+      }
+    },
+    
+    // Résumé des transactions
+    getTransactionSummary: async (period = 'month') => {
+      console.log(`?? Fetching transaction summary for period: ${period}`);
+      try {
+        const response = await api.get('/finance/transaction-summary/', { params: { period } });
+        return response;
+      } catch (error) {
+        console.error("? Error fetching transaction summary:", error);
+        throw error;
+      }
+    },
+    
+    // Test API
+    testAPI: async () => {
+      console.log("?? Testing all finance API endpoints...");
+      try {
+        const endpoints = [
+          { name: 'transactions', call: () => api.get('/finance/transactions/?page_size=5') },
+          { name: 'budgets', call: () => api.get('/finance/budgets/?page_size=5') },
+          { name: 'statistics', call: () => api.get('/finance/statistics/') }
+        ];
+        
+        for (const endpoint of endpoints) {
+          try {
+            const response = await endpoint.call();
+            console.log(`? ${endpoint.name}:`, {
+              status: response.status,
+              success: response.data?.success,
+              dataType: Array.isArray(response.data) ? 'array' : 
+                       Array.isArray(response.data?.data) ? 'data array' : 
+                       Array.isArray(response.data?.results) ? 'results array' : 'object',
+              keys: Object.keys(response.data || {})
+            });
+          } catch (error) {
+            console.error(`? ${endpoint.name}:`, error.message);
+          }
+        }
+      } catch (error) {
+        console.error("? Error testing API:", error);
+      }
+    }
+  };
+export default api;    src/pages/Finance.jsx    et src/services/api.js   et src/components/FiananceModal.jsx    et voila le backend models.py from django.db import models
+from django.core.validators import MinValueValidator
+from students.models import Student
+from teachers.models import Teacher
+import uuid
+from datetime import datetime, date
+from django.utils import timezone
+
+class Transaction(models.Model):
+    TRANSACTION_TYPES = [
+        ('tuition', 'Frais de scolarité'),
+        ('exam_fee', 'Frais d\'examen'),
+        ('library_fee', 'Frais de bibliothèque'),
+        ('lab_fee', 'Frais de laboratoire'),
+        ('scholarship', 'Bourse d\'études'),
+        ('refund', 'Remboursement'),
+        ('salary', 'Salaire enseignant'),
+        ('maintenance', 'Maintenance'),
+        ('equipment', 'Équipement'),
+        ('other', 'Autre'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('paid', 'Payé'),
+        ('pending', 'En attente'),
+        ('overdue', 'En retard'),
+        ('cancelled', 'Annulé'),
+        ('partial', 'Partiel'),
+    ]
+    
+    METHOD_CHOICES = [
+        ('bank_transfer', 'Virement bancaire'),
+        ('credit_card', 'Carte de crédit'),
+        ('cash', 'Espèces'),
+        ('check', 'Chèque'),
+        ('mobile_payment', 'Paiement mobile'),
+    ]
+    
+    CATEGORY_CHOICES = [
+        ('income', 'Revenu'),
+        ('expense', 'Dépense'),
+        ('scholarship', 'Bourse'),
+        ('salary', 'Salaire'),
+    ]
+    
+    # NOTE: La base de données a actuellement student_id (bigint) au lieu d'un UUID
+    # Nous devons temporairement utiliser IntegerField pour correspondre
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Champ temporaire avec null=True pour permettre la migration
+    transaction_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    
+    # Student - utiliser IntegerField temporairement pour correspondre à la base
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, 
+                                related_name='transactions', 
+                                null=True, blank=True,
+                                db_column='student_id')  # Spécifier explicitement la colonne
+    
+    # Teacher - ajouter null=True car la colonne n'existe pas encore
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, 
+                                related_name='salary_transactions', 
+                                null=True, blank=True)
+    
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='income')
+    amount = models.DecimalField(max_digits=12, decimal_places=3, validators=[MinValueValidator(0.001)])
+    
+    # Ajouter default=0 pour éviter les erreurs si la colonne n'existe pas
+    paid_amount = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    
+    date = models.DateField(default=date.today)
+    due_date = models.DateField(null=True, blank=True)
+    payment_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    method = models.CharField(max_length=20, choices=METHOD_CHOICES, blank=True)
+    description = models.TextField(blank=True)
+    receipt_number = models.CharField(max_length=50, blank=True)
+    invoice_number = models.CharField(max_length=50, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_recurring = models.BooleanField(default=False)
+    recurrence_period = models.CharField(max_length=20, blank=True, choices=[
+        ('monthly', 'Mensuel'),
+        ('quarterly', 'Trimestriel'),
+        ('yearly', 'Annuel'),
+    ])
+    
+    class Meta:
+        ordering = ['-date']  # Retirer '-created_at' temporairement
+        indexes = [
+            models.Index(fields=['transaction_number']),
+            models.Index(fields=['student', 'status']),
+            models.Index(fields=['date']),
+            models.Index(fields=['due_date']),
+        ]
+    
+    def __str__(self):
+        if self.student:
+            student_id = getattr(self.student, 'student_id', 'N/A')
+            return f"{self.transaction_number or 'N/A'} - {student_id} - {self.transaction_type}"
+        elif self.teacher:
+            teacher_id = getattr(self.teacher, 'teacher_id', 'N/A')
+            return f"{self.transaction_number or 'N/A'} - {teacher_id} - {self.transaction_type}"
+        else:
+            return f"{self.transaction_number or 'N/A'} - {self.transaction_type}"
+    
+    def save(self, *args, **kwargs):
+        # Éviter la génération de transaction_number si nous migrons
+        is_new = self._state.adding
+        
+        # Générer un numéro de transaction unique si vide
+        if not self.transaction_number and is_new:
+            prefix = 'TRN'
+            year = str(self.date.year)[2:] if self.date else str(datetime.now().year)[2:]
+            
+            try:
+                # Compter les transactions existantes pour cette année
+                count = Transaction.objects.filter(
+                    created_at__year=self.date.year if self.date else datetime.now().year
+                ).count() + 1
+                self.transaction_number = f"{prefix}{year}{count:06d}"
+            except:
+                # En cas d'erreur, utiliser un numéro temporaire
+                import random
+                self.transaction_number = f"{prefix}{year}{random.randint(100000, 999999)}"
+        
+        # Déterminer la catégorie automatiquement si non spécifiée
+        if not self.category or self.category == 'income':
+            if self.transaction_type in ['scholarship', 'refund']:
+                self.category = 'scholarship'
+            elif self.transaction_type == 'salary':
+                self.category = 'salary'
+            elif self.transaction_type in ['tuition', 'exam_fee', 'library_fee', 'lab_fee']:
+                self.category = 'income'
+            else:
+                self.category = 'expense'
+        
+        # Calculer le statut basé sur le paiement
+        if self.paid_amount >= self.amount:
+            self.status = 'paid'
+            if not self.payment_date:
+                self.payment_date = date.today()
+        elif self.paid_amount > 0:
+            self.status = 'partial'
+        
+        # Vérifier si la date d'échéance est dépassée
+        if (self.due_date and self.due_date < date.today() and 
+            self.status not in ['paid', 'cancelled']):
+            self.status = 'overdue'
+        
+        # S'assurer que le montant payé ne dépasse pas le montant total
+        if self.paid_amount > self.amount:
+            self.paid_amount = self.amount
+        
+        super().save(*args, **kwargs)
+    
+    def get_remaining_amount(self):
+        return self.amount - self.paid_amount
+    
+    @property
+    def remaining_amount(self):
+        return self.get_remaining_amount()
+    
+    @property
+    def is_overdue(self):
+        if (self.due_date and self.due_date < date.today() and 
+            self.status not in ['paid', 'cancelled']):
+            return True
+        return False
+    
+    @property
+    def days_overdue(self):
+        if self.is_overdue:
+            return (date.today() - self.due_date).days
+        return 0
+    
+    @property
+    def payment_percentage(self):
+        if self.amount > 0:
+            return round((self.paid_amount / self.amount) * 100, 2)
+        return 0
+
+class Budget(models.Model):
+    DEPARTMENT_CHOICES = [
+        ('engineering', 'Faculté d\'Ingénierie'),
+        ('medicine', 'Faculté de Médecine'),
+        ('sciences', 'Faculté des Sciences'),
+        ('arts', 'Faculté des Arts'),
+        ('economics', 'Faculté d\'Économie'),
+        ('law', 'Faculté de Droit'),
+        ('administration', 'Administration Générale'),
+        ('it', 'Centre Informatique'),
+        ('library', 'Bibliothèque Centrale'),
+        ('student_affairs', 'Affaires Étudiantes'),
+        ('maintenance', 'Maintenance'),
+        ('salaries', 'Salaires'),
+    ]
+    
+    BUDGET_TYPE_CHOICES = [
+        ('operational', 'Opérationnel'),
+        ('capital', 'Capital'),
+        ('salary', 'Salaires'),
+        ('scholarship', 'Bourses'),
+        ('development', 'Développement'),
+    ]
+    
+    department = models.CharField(max_length=50, choices=DEPARTMENT_CHOICES)
+    budget_type = models.CharField(max_length=20, choices=BUDGET_TYPE_CHOICES, default='operational')
+    year = models.IntegerField(default=datetime.now().year)
+    allocated_amount = models.DecimalField(max_digits=15, decimal_places=3, validators=[MinValueValidator(0.001)])
+    spent_amount = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    committed_amount = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['department', 'budget_type', 'year']
+        ordering = ['-year', 'department']
+    
+    def __str__(self):
+        return f"Budget {self.department} - {self.budget_type} - {self.year}"
+    
+    @property
+    def remaining_amount(self):
+        return self.allocated_amount - self.spent_amount - self.committed_amount
+    
+    @property
+    def utilization_percentage(self):
+        if self.allocated_amount > 0:
+            return round((self.spent_amount / self.allocated_amount) * 100, 2)
+        return 0
+    
+    @property
+    def available_amount(self):
+        return self.allocated_amount - self.spent_amount
+    
+    @property
+    def commitment_percentage(self):
+        if self.allocated_amount > 0:
+            return round((self.committed_amount / self.allocated_amount) * 100, 2)
+        return 0
+    
+    def can_spend(self, amount):
+        """Vérifier si un montant peut être dépensé"""
+        available = self.available_amount - self.committed_amount
+        return available >= amount
+    
+    def commit_amount(self, amount):
+        """Engager un montant"""
+        if self.can_spend(amount):
+            self.committed_amount += amount
+            self.save()
+            return True
+        return False
+    
+    def release_commitment(self, amount):
+        """Libérer un engagement"""
+        if self.committed_amount >= amount:
+            self.committed_amount -= amount
+            self.save()
+            return True
+        return False
+    
+    def spend_amount(self, amount):
+        """Dépenser un montant (réel)"""
+        if self.spent_amount + amount <= self.allocated_amount:
+            self.spent_amount += amount
+            # Libérer l'engagement correspondant si nécessaire
+            if self.committed_amount >= amount:
+                self.committed_amount -= amount
+            elif self.committed_amount > 0:
+                # Si l'engagement est partiel
+                amount -= self.committed_amount
+                self.committed_amount = 0
+            self.save()
+            return True
+        return False
+
+class Salary(models.Model):
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name='salaries')
+    month = models.IntegerField(choices=[(i, i) for i in range(1, 13)], default=datetime.now().month)
+    year = models.IntegerField(default=datetime.now().year)
+    base_salary = models.DecimalField(max_digits=10, decimal_places=3)
+    bonus = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    deductions = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    net_salary = models.DecimalField(max_digits=10, decimal_places=3)
+    status = models.CharField(max_length=20, choices=[
+        ('pending', 'En attente'),
+        ('paid', 'Payé'),
+        ('processing', 'En traitement'),
+        ('cancelled', 'Annulé'),
+    ], default='pending')
+    payment_date = models.DateField(null=True, blank=True)
+    payment_method = models.CharField(max_length=20, choices=Transaction.METHOD_CHOICES, blank=True)
+    transaction = models.OneToOneField(Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='salary_payment')
+    comments = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['teacher', 'month', 'year']
+        ordering = ['-year', '-month']
+    
+    def __str__(self):
+        teacher_id = getattr(self.teacher, 'teacher_id', 'N/A') if self.teacher else 'N/A'
+        return f"Salaire {teacher_id} - {self.month}/{self.year}"
+    
+    def save(self, *args, **kwargs):
+        if not self.net_salary:
+            self.net_salary = self.base_salary + self.bonus - self.deductions
+        
+        # Mettre à jour la date de paiement si le statut est 'paid'
+        if self.status == 'paid' and not self.payment_date:
+            self.payment_date = date.today()
+        
+        super().save(*args, **kwargs)
+    
+    @property
+    def month_name(self):
+        month_names = [
+            'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+            'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+        ]
+        return month_names[self.month - 1] if 1 <= self.month <= 12 else ''
+    
+    @property
+    def gross_salary(self):
+        return self.base_salary + self.bonus
+    
+    @property
+    def tax_percentage(self):
+        if self.gross_salary > 0:
+            return round((self.deductions / self.gross_salary) * 100, 2)
+        return 0
+
+class FinancialReport(models.Model):
+    REPORT_TYPE_CHOICES = [
+        ('daily', 'Journalier'),
+        ('weekly', 'Hebdomadaire'),
+        ('monthly', 'Mensuel'),
+        ('quarterly', 'Trimestriel'),
+        ('yearly', 'Annuel'),
+    ]
+    
+    report_type = models.CharField(max_length=50, choices=REPORT_TYPE_CHOICES)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    total_income = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    total_expenses = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    total_salaries = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    total_scholarships = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    net_balance = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    generated_at = models.DateTimeField(auto_now_add=True)
+    generated_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
+    file_path = models.FileField(upload_to='financial_reports/', null=True, blank=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-period_end']
+    
+    def __str__(self):
+        return f"Rapport {self.report_type} - {self.period_start} au {self.period_end}"
+    
+    @property
+    def period_duration(self):
+        return (self.period_end - self.period_start).days + 1
+    
+    @property
+    def daily_average_income(self):
+        if self.period_duration > 0:
+            return round(float(self.total_income) / self.period_duration, 3)
+        return 0
+    
+    @property
+    def daily_average_expenses(self):
+        if self.period_duration > 0:
+            return round(float(self.total_expenses) / self.period_duration, 3)
+        return 0
+    
+    @property
+    def profit_margin(self):
+        if self.total_income > 0:
+            margin = ((float(self.total_income) - float(self.total_expenses + self.total_salaries + self.total_scholarships)) / 
+                     float(self.total_income)) * 100
+            return round(margin, 2)
+        return 0
+    
+    def generate_summary(self):
+        """Générer un résumé du rapport"""
+        return {
+            'période': f"{self.period_start} au {self.period_end}",
+            'type': self.get_report_type_display(),
+            'durée_jours': self.period_duration,
+            'revenus_total': float(self.total_income),
+            'dépenses_total': float(self.total_expenses),
+            'salaires_total': float(self.total_salaries),
+            'bourses_total': float(self.total_scholarships),
+            'solde_net': float(self.net_balance),
+            'marge_bénéfice': f"{self.profit_margin}%",
+            'revenu_moyen_journalier': self.daily_average_income,
+            'dépense_moyenne_journalière': self.daily_average_expenses,
+            'généré_le': self.generated_at.strftime('%d/%m/%Y %H:%M'),
+        }
+
+class PaymentReminder(models.Model):
+    transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name='reminders')
+    reminder_date = models.DateField()
+    reminder_type = models.CharField(max_length=20, choices=[
+        ('first', 'Premier rappel'),
+        ('second', 'Deuxième rappel'),
+        ('final', 'Rappel final'),
+        ('overdue', 'En retard'),
+    ])
+    sent_at = models.DateTimeField(null=True, blank=True)
+    sent_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-reminder_date']
+    
+    def __str__(self):
+        return f"Rappel {self.reminder_type} - {self.transaction.transaction_number or 'N/A'} - {self.reminder_date}"
+    
+    @property
+    def is_sent(self):
+        return self.sent_at is not None
+    
+    @property
+    def days_until_due(self):
+        if self.transaction and self.transaction.due_date:
+            return (self.transaction.due_date - date.today()).days
+        return None
+
+class FinancialSetting(models.Model):
+    setting_key = models.CharField(max_length=100, unique=True)
+    setting_value = models.TextField()
+    setting_type = models.CharField(max_length=50, choices=[
+        ('string', 'Texte'),
+        ('number', 'Nombre'),
+        ('boolean', 'Booléen'),
+        ('json', 'JSON'),
+        ('date', 'Date'),
+    ], default='string')
+    description = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['setting_key']
+    
+    def __str__(self):
+        return self.setting_key
+    
+    def get_value(self):
+        """Obtenir la valeur dans le bon type"""
+        if self.setting_type == 'number':
+            try:
+                return float(self.setting_value) if '.' in self.setting_value else int(self.setting_value)
+            except ValueError:
+                return 0
+        elif self.setting_type == 'boolean':
+            return self.setting_value.lower() in ['true', '1', 'yes', 'oui']
+        elif self.setting_type == 'json':
+            try:
+                import json
+                return json.loads(self.setting_value)
+            except:
+                return {}
+        elif self.setting_type == 'date':
+            try:
+                from datetime import datetime
+                return datetime.strptime(self.setting_value, '%Y-%m-%d').date()
+            except:
+                return None
+        else:
+            return self.setting_value      serializers.py   from rest_framework import serializers
+from .models import Transaction, Budget, Salary, FinancialReport
+from students.models import Student
+from teachers.models import Teacher
+from django.contrib.auth import get_user_model
+from datetime import datetime, date
+import decimal
+
+User = get_user_model()
+
+class StudentSimpleSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Student
+        fields = ['id', 'student_id', 'full_name', 'email', 'faculty', 'department', 'current_year']
+    
+    def get_full_name(self, obj):
+        if obj and obj.user:
+            return f"{obj.user.first_name} {obj.user.last_name}"
+        return "Inconnu"
+    
+    def get_email(self, obj):
+        if obj and obj.user:
+            return obj.user.email
+        return ""
+
+class TeacherSimpleSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Teacher
+        fields = ['id', 'teacher_id', 'full_name', 'email', 'department', 'specialization', 'rank']
+    
+    def get_full_name(self, obj):
+        if obj and obj.user:
+            return f"{obj.user.first_name} {obj.user.last_name}"
+        return "Inconnu"
+    
+    def get_email(self, obj):
+        if obj and obj.user:
+            return obj.user.email
+        return ""
+
+class TransactionSerializer(serializers.ModelSerializer):
+    """Serializer principal pour les transactions"""
+    student_name = serializers.SerializerMethodField()
+    teacher_name = serializers.SerializerMethodField()
+    remaining_amount = serializers.SerializerMethodField(read_only=True)
+    is_overdue = serializers.SerializerMethodField(read_only=True)
+    days_overdue = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = Transaction
+        fields = [
+            'id', 'transaction_number', 'transaction_type', 'category',
+            'student', 'student_name', 'teacher', 'teacher_name',
+            'amount', 'paid_amount', 'remaining_amount', 'date', 'due_date', 'payment_date',
+            'status', 'method', 'description', 'receipt_number', 'invoice_number',
+            'is_recurring', 'recurrence_period', 'is_overdue', 'days_overdue',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['transaction_number', 'created_at', 'updated_at', 'remaining_amount']
+    
+    def get_student_name(self, obj):
+        if obj.student:
+            try:
+                return f"{obj.student.user.first_name} {obj.student.user.last_name}"
+            except:
+                return f"Étudiant {obj.student_id}"
+        return ""
+    
+    def get_teacher_name(self, obj):
+        if obj.teacher:
+            try:
+                return f"{obj.teacher.user.first_name} {obj.teacher.user.last_name}"
+            except:
+                return f"Enseignant {obj.teacher_id}"
+        return ""
+    
+    def get_remaining_amount(self, obj):
+        try:
+            return obj.remaining_amount
+        except:
+            amount = getattr(obj, 'amount', 0) or 0
+            paid = getattr(obj, 'paid_amount', 0) or 0
+            return max(0, amount - paid)
+    
+    def get_is_overdue(self, obj):
+        try:
+            if obj.due_date and obj.due_date < date.today() and obj.status not in ['paid', 'cancelled']:
+                return True
+            return False
+        except:
+            return False
+    
+    def get_days_overdue(self, obj):
+        try:
+            if obj.due_date and obj.due_date < date.today() and obj.status not in ['paid', 'cancelled']:
+                return (date.today() - obj.due_date).days
+            return 0
+        except:
+            return 0
+    
+    def validate(self, data):
+        """Validation globale de la transaction"""
+        student = data.get('student')
+        teacher = data.get('teacher')
+        transaction_type = data.get('transaction_type')
+        
+        # Pour les salaires, vérifier qu'un enseignant est associé
+        if transaction_type == 'salary' and not teacher:
+            raise serializers.ValidationError({
+                'teacher': 'Les transactions de type salaire doivent être associées à un enseignant.'
+            })
+        
+        # Pour les frais étudiants, vérifier qu'un étudiant est associé
+        if transaction_type in ['tuition', 'exam_fee', 'library_fee', 'lab_fee'] and not student:
+            raise serializers.ValidationError({
+                'student': f'Les transactions de type {transaction_type} doivent être associées à un étudiant.'
+            })
+        
+        return data
+    
+    def validate_amount(self, value):
+        """Validation du montant"""
+        if value <= 0:
+            raise serializers.ValidationError("Le montant doit être positif.")
+        return value
+    
+    def create(self, validated_data):
+        # Déterminer automatiquement la catégorie
+        transaction_type = validated_data.get('transaction_type')
+        if transaction_type in ['scholarship', 'refund']:
+            validated_data['category'] = 'scholarship'
+        elif transaction_type == 'salary':
+            validated_data['category'] = 'salary'
+        elif transaction_type in ['tuition', 'exam_fee', 'library_fee', 'lab_fee']:
+            validated_data['category'] = 'income'
+        elif 'category' not in validated_data:
+            validated_data['category'] = 'expense'
+        
+        # Définir le statut par défaut
+        if 'status' not in validated_data:
+            validated_data['status'] = 'pending'
+        
+        return super().create(validated_data)
+
+class TransactionCreateSerializer(serializers.ModelSerializer):
+    """Serializer pour la création de transactions"""
+    class Meta:
+        model = Transaction
+        fields = [
+            'student', 'teacher', 'transaction_type', 'category', 'amount',
+            'date', 'due_date', 'status', 'method', 'description',
+            'is_recurring', 'recurrence_period'
+        ]
+    
+    def create(self, validated_data):
+        # Déterminer automatiquement la catégorie
+        transaction_type = validated_data.get('transaction_type')
+        if transaction_type in ['scholarship', 'refund']:
+            validated_data['category'] = 'scholarship'
+        elif transaction_type == 'salary':
+            validated_data['category'] = 'salary'
+        elif transaction_type in ['tuition', 'exam_fee', 'library_fee', 'lab_fee']:
+            validated_data['category'] = 'income'
+        elif 'category' not in validated_data:
+            validated_data['category'] = 'expense'
+        
+        return super().create(validated_data)
+
+class BudgetSerializer(serializers.ModelSerializer):
+    remaining_amount = serializers.SerializerMethodField()
+    available_amount = serializers.SerializerMethodField()
+    utilization_percentage = serializers.SerializerMethodField()
+    department_display = serializers.SerializerMethodField()
+    budget_type_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Budget
+        fields = [
+            'id', 'department', 'department_display', 'budget_type', 'budget_type_display',
+            'year', 'allocated_amount', 'spent_amount', 'committed_amount',
+            'remaining_amount', 'available_amount', 'utilization_percentage',
+            'description', 'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+    
+    def get_remaining_amount(self, obj):
+        return obj.remaining_amount if hasattr(obj, 'remaining_amount') else 0
+    
+    def get_available_amount(self, obj):
+        return obj.available_amount if hasattr(obj, 'available_amount') else 0
+    
+    def get_utilization_percentage(self, obj):
+        return obj.utilization_percentage if hasattr(obj, 'utilization_percentage') else 0
+    
+    def get_department_display(self, obj):
+        return obj.get_department_display() if obj.department else obj.department
+    
+    def get_budget_type_display(self, obj):
+        return obj.get_budget_type_display() if obj.budget_type else obj.budget_type
+
+class SalarySerializer(serializers.ModelSerializer):
+    teacher_name = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Salary
+        fields = [
+            'id', 'teacher', 'teacher_name', 'month', 'year',
+            'base_salary', 'bonus', 'deductions', 'net_salary',
+            'status', 'status_display', 'payment_date', 'payment_method',
+            'transaction', 'comments', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['net_salary', 'created_at', 'updated_at']
+    
+    def get_teacher_name(self, obj):
+        if obj.teacher:
+            try:
+                return f"{obj.teacher.user.first_name} {obj.teacher.user.last_name}"
+            except:
+                return f"Enseignant {obj.teacher_id}"
+        return ""
+    
+    def get_status_display(self, obj):
+        return obj.get_status_display() if obj.status else obj.status
+
+class FinancialReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FinancialReport
+        fields = '__all__'
+        read_only_fields = ['generated_at', 'generated_by']
+
+class FinanceStatisticsSerializer(serializers.Serializer):
+    total_income = serializers.DecimalField(max_digits=15, decimal_places=3, default=0)
+    total_expenses = serializers.DecimalField(max_digits=15, decimal_places=3, default=0)
+    total_salaries = serializers.DecimalField(max_digits=15, decimal_places=3, default=0)
+    total_scholarships = serializers.DecimalField(max_digits=15, decimal_places=3, default=0)
+    net_balance = serializers.DecimalField(max_digits=15, decimal_places=3, default=0)
+    pending_transactions = serializers.IntegerField(default=0)
+    overdue_transactions = serializers.IntegerField(default=0)
+    pending_amount = serializers.DecimalField(max_digits=15, decimal_places=3, default=0)
+    overdue_amount = serializers.DecimalField(max_digits=15, decimal_places=3, default=0)
+    monthly_income = serializers.ListField(child=serializers.DictField(), default=[])
+    monthly_expenses = serializers.ListField(child=serializers.DictField(), default=[])
+    transaction_distribution = serializers.ListField(child=serializers.DictField(), default=[])
+    budget_utilization = serializers.ListField(child=serializers.DictField(), default=[])     et urls.py   from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from . import views
+
+router = DefaultRouter()
+router.register(r'transactions', views.TransactionViewSet, basename='transaction')
+router.register(r'budgets', views.BudgetViewSet, basename='budget')
+
+urlpatterns = [
+    path('', include(router.urls)),
+    path('statistics/', views.finance_statistics, name='finance-statistics'),
+    path('export/transactions/', views.export_transactions, name='export-transactions'),
+]      et views.py  from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.response import Response
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Sum, Count, Q
+from datetime import datetime, date, timedelta
+import calendar
+from .models import Transaction, Budget, Salary, FinancialReport
+from .serializers import (
+    TransactionSerializer, TransactionCreateSerializer,
+    BudgetSerializer, SalarySerializer, FinancialReportSerializer,
+    FinanceStatisticsSerializer
+)
+from students.models import Student
+from teachers.models import Teacher
+import traceback
+from django.http import HttpResponse
+import csv
+from decimal import Decimal
+
+class TransactionViewSet(viewsets.ModelViewSet):
+    """ViewSet pour les transactions"""
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = {
+        'transaction_type': ['exact', 'in'],
+        'category': ['exact'],
+        'status': ['exact', 'in'],
+        'method': ['exact'],
+        'date': ['gte', 'lte', 'exact'],
+        'due_date': ['gte', 'lte', 'exact'],
+        'amount': ['gte', 'lte'],
+    }
+    search_fields = [
+        'transaction_number',
+        'description',
+        'receipt_number',
+        'invoice_number',
+    ]
+    ordering_fields = ['date', 'due_date', 'amount']
+    
+    def get_queryset(self):
+        queryset = Transaction.objects.all()
+        
+        # Filtres personnalisés
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category=category)
+        
+        student_id = self.request.query_params.get('student')
+        if student_id:
+            queryset = queryset.filter(student_id=student_id)
+        
+        teacher_id = self.request.query_params.get('teacher')
+        if teacher_id:
+            queryset = queryset.filter(teacher_id=teacher_id)
+        
+        is_overdue = self.request.query_params.get('is_overdue')
+        if is_overdue == 'true':
+            queryset = queryset.filter(
+                due_date__lt=date.today(),
+                status__in=['pending', 'partial']
+            )
+        
+        # Filtre par période
+        period = self.request.query_params.get('period')
+        if period:
+            today = date.today()
+            if period == 'today':
+                queryset = queryset.filter(date=today)
+            elif period == 'week':
+                start_date = today - timedelta(days=today.weekday())
+                end_date = start_date + timedelta(days=6)
+                queryset = queryset.filter(date__range=[start_date, end_date])
+            elif period == 'month':
+                start_date = today.replace(day=1)
+                end_date = (today.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+                queryset = queryset.filter(date__range=[start_date, end_date])
+            elif period == 'year':
+                start_date = today.replace(month=1, day=1)
+                end_date = today.replace(month=12, day=31)
+                queryset = queryset.filter(date__range=[start_date, end_date])
+        
+        return queryset.order_by('-date')
+    
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return TransactionCreateSerializer
+        return TransactionSerializer
+    
+    def list(self, request, *args, **kwargs):
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            print(f"? Erreur dans TransactionViewSet.list: {str(e)}")
+            traceback.print_exc()
+            return Response({
+                'success': False,
+                'error': 'Erreur lors du chargement des transactions',
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class BudgetViewSet(viewsets.ModelViewSet):
+    """ViewSet pour les budgets"""
+    queryset = Budget.objects.all()
+    serializer_class = BudgetSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['department', 'budget_type', 'year', 'is_active']
+    search_fields = ['description']
+    ordering_fields = ['year', 'allocated_amount', 'department']
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def finance_statistics(request):
+    """Statistiques financières complètes"""
+    try:
+        today = date.today()
+        current_year = today.year
+        
+        # Transactions
+        transactions = Transaction.objects.all()
+        
+        # Revenus (catégorie income)
+        total_income = transactions.filter(
+            category='income',
+            status='paid'
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Dépenses (catégorie expense)
+        total_expenses = transactions.filter(
+            category='expense',
+            status='paid'
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Salaires
+        total_salaries = transactions.filter(
+            category='salary',
+            status='paid'
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Bourses
+        total_scholarships = transactions.filter(
+            category='scholarship',
+            status='paid'
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        # En attente
+        pending_transactions = transactions.filter(status__in=['pending', 'partial'])
+        pending_count = pending_transactions.count()
+        pending_amount = pending_transactions.aggregate(total=Sum('amount'))['total'] or 0
+        
+        # En retard
+        overdue_transactions = transactions.filter(
+            due_date__lt=today,
+            status__in=['pending', 'partial']
+        )
+        overdue_count = overdue_transactions.count()
+        overdue_amount = overdue_transactions.aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Répartition par type de transaction
+        transaction_distribution = []
+        try:
+            transaction_distribution = list(transactions.filter(
+                status='paid'
+            ).values('transaction_type').annotate(
+                total=Sum('amount'),
+                count=Count('id')
+            ).order_by('-total'))
+        except Exception as e:
+            print(f"?? Erreur distribution: {e}")
+        
+        # Revenus mensuels (6 derniers mois)
+        monthly_income = []
+        monthly_expenses = []
+        for i in range(5, -1, -1):
+            month_date = today.replace(day=1) - timedelta(days=30*i)
+            month_start = month_date.replace(day=1)
+            month_end = (month_date.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            
+            month_income = transactions.filter(
+                category='income',
+                status='paid',
+                date__range=[month_start, month_end]
+            ).aggregate(total=Sum('amount'))['total'] or 0
+            
+            month_expenses = transactions.filter(
+                category='expense',
+                status='paid',
+                date__range=[month_start, month_end]
+            ).aggregate(total=Sum('amount'))['total'] or 0
+            
+            monthly_income.append({
+                'month': month_date.strftime('%Y-%m'),
+                'month_name': month_date.strftime('%B %Y'),
+                'amount': float(month_income)
+            })
+            
+            monthly_expenses.append({
+                'month': month_date.strftime('%Y-%m'),
+                'month_name': month_date.strftime('%B %Y'),
+                'amount': float(month_expenses)
+            })
+        
+        # Utilisation des budgets
+        budget_utilization = []
+        try:
+            budgets = Budget.objects.filter(year=current_year, is_active=True)
+            for budget in budgets:
+                budget_utilization.append({
+                    'department': budget.department,
+                    'department_display': budget.get_department_display(),
+                    'type': budget.budget_type,
+                    'type_display': budget.get_budget_type_display(),
+                    'allocated': float(budget.allocated_amount),
+                    'spent': float(budget.spent_amount),
+                    'committed': float(budget.committed_amount),
+                    'remaining': float(budget.remaining_amount),
+                    'utilization': budget.utilization_percentage,
+                })
+        except Exception as e:
+            print(f"?? Erreur budgets: {e}")
+        
+        data = {
+            'total_income': float(total_income),
+            'total_expenses': float(total_expenses),
+            'total_salaries': float(total_salaries),
+            'total_scholarships': float(total_scholarships),
+            'net_balance': float(total_income - total_expenses - total_salaries - total_scholarships),
+            'pending_transactions': pending_count,
+            'overdue_transactions': overdue_count,
+            'pending_amount': float(pending_amount),
+            'overdue_amount': float(overdue_amount),
+            'monthly_income': monthly_income,
+            'monthly_expenses': monthly_expenses,
+            'transaction_distribution': transaction_distribution,
+            'budget_utilization': budget_utilization,
+        }
+        
+        return Response({'success': True, 'data': data})
+        
+    except Exception as e:
+        print(f"? Erreur calcul statistiques: {str(e)}")
+        traceback.print_exc()
+        return Response({
+            'success': False,
+            'error': 'Erreur lors du calcul des statistiques',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def export_transactions(request):
+    """Exporter les transactions en CSV"""
+    try:
+        # Créer la réponse HTTP
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="transactions.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'Numéro', 'Date', 'Type', 'Catégorie', 'Étudiant/Enseignant',
+            'Montant total', 'Montant payé', 'Reste à payer',
+            'Date échéance', 'Statut', 'Mode paiement', 'Description'
+        ])
+        
+        transactions = Transaction.objects.all()
+        
+        for transaction in transactions:
+            if transaction.student:
+                try:
+                    person = f"{transaction.student.user.first_name} {transaction.student.user.last_name}"
+                except:
+                    person = f"Étudiant {transaction.student_id}"
+            elif transaction.teacher:
+                try:
+                    person = f"{transaction.teacher.user.first_name} {transaction.teacher.user.last_name}"
+                except:
+                    person = f"Enseignant {transaction.teacher_id}"
+            else:
+                person = ''
+            
+            writer.writerow([
+                transaction.transaction_number or '',
+                transaction.date.strftime('%d/%m/%Y') if transaction.date else '',
+                transaction.get_transaction_type_display(),
+                transaction.get_category_display() if transaction.category else '',
+                person,
+                str(transaction.amount) if transaction.amount else '0',
+                str(transaction.paid_amount) if transaction.paid_amount else '0',
+                str(transaction.remaining_amount),
+                transaction.due_date.strftime('%d/%m/%Y') if transaction.due_date else '',
+                transaction.get_status_display(),
+                transaction.get_method_display() if transaction.method else '',
+                transaction.description or ''
+            ])
+        
+        return response
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)      tout sucr backend /finance   app dans le project le project s'appelle university_management  dans fichier backend/university_management      voila settings.py  import os
+from pathlib import Path
+from datetime import timedelta
+
+# Build paths
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# SECURITY WARNING: gardez la clé secrète utilisée en production secrète !
+SECRET_KEY = 'django-insecure-votre-secret-key-32-caracteres-changez-plus-tard'
+
+# SECURITY WARNING: ne pas exécuter avec debug activé en production !
+DEBUG = True
+
+ALLOWED_HOSTS = []
+
+# Application definition
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    
+    # Third party
+    'rest_framework',
+    'corsheaders',
+    'rest_framework_simplejwt',
+    'django_filters',
+    
+    # Local apps
+    'accounts',
+    'students',
+    'teachers',
+    'courses',
+    'exams',
+    'finance',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+ROOT_URLCONF = 'university_management.urls'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = 'university_management.wsgi.application'
+
+# Database
+# Utilisation de SQLite pour le développement
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
+
+# Password validation
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+
+# Internationalization
+LANGUAGE_CODE = 'fr-fr'
+TIME_ZONE = 'Europe/Paris'
+USE_I18N = True
+USE_TZ = True
+
+# Static files (CSS, JavaScript, Images)
+STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# CORS settings
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+CORS_ALLOW_CREDENTIALS = True
+
+# REST Framework
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+    'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+}
+
+# JWT settings
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+}
+
+# Custom user model
+AUTH_USER_MODEL = 'accounts.User'    et urls.py from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('api/accounts/', include('accounts.urls')),
+    path('api/students/', include('students.urls')),
+    path('api/teachers/', include('teachers.urls')),
+    path('api/courses/', include('courses.urls')),
+    path('api/exams/', include('exams.urls')),
+    path('api/finance/', include('finance.urls')),
+]
